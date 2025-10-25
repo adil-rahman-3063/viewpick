@@ -2,15 +2,51 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:app_links/app_links.dart';
 import 'theme/app_theme.dart';
 import 'login.dart';
+import 'register.dart';
+import 'pages/home_page.dart';
 
-Future<void> main() async {
-	WidgetsFlutterBinding.ensureInitialized();
+void handleAuthCallback(Uri uri) async {
+  // Get the session from the URL
+  if (uri.queryParameters['access_token'] != null) {
+    // Set the session in Supabase
+    final client = Supabase.instance.client;
+    await client.auth.setSession(uri.queryParameters['access_token']!);
+    // Navigate to home page
+    // Note: You'll need to implement a way to access navigation from here
+    // One way is to use a GlobalKey<NavigatorState>
+  }
+}
 
+Future<void> main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-	// Load local .env file (copy from .env.example and set your keys)
-	await dotenv.load(fileName: 'assets/credentials.env').catchError((err) {
+  // Initialize deep link handling
+  final appLinks = AppLinks();
+  
+  // Handle incoming links - both cold and warm starts
+  appLinks.allUriLinkStream.listen((uri) {
+    print('Got link: $uri');
+    if (uri.path == '/auth') {
+      handleAuthCallback(uri);
+    }
+  });
+
+  // Handle Windows protocol activation: args may contain the deep link URI
+  String? initialLinkFromArgs;
+  if (Platform.isWindows && args.isNotEmpty) {
+    for (final a in args) {
+      if (a.startsWith('viewpick://')) {
+        initialLinkFromArgs = a;
+        break;
+      }
+    }
+  }
+
+  // Load local .env file (copy from .env.example and set your keys)
+  await dotenv.load(fileName: 'assets/credentials.env').catchError((err) {
 		// If loading fails, we'll continue but warn in console.
 		// You can still run the app and fill in env vars later.
 		// ignore: avoid_print
@@ -32,28 +68,33 @@ Future<void> main() async {
 		print('Supabase not initialized: missing SUPABASE_URL or SUPABASE_ANON_KEY in .env');
 	}
 
-	runApp(const MyApp());
+	runApp(MyApp(initialLink: initialLinkFromArgs));
 }
 
 class MyApp extends StatelessWidget {
-	const MyApp({super.key});
+  final String? initialLink;
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  
+  MyApp({super.key, this.initialLink});
 
-	@override
-	Widget build(BuildContext context) {
-		return MaterialApp(
-			title: 'ViewPick',
-			// Use Material 3 with brown seed color
-			theme: AppTheme.lightTheme,
-			darkTheme: AppTheme.darkTheme,
-			// Default to dark mode
-			themeMode: ThemeMode.dark,
-			
-			// Start at the login page and provide a named route for home.
-			initialRoute: '/',
-			routes: {
-				'/': (context) => const LoginPage(),
-				'/home': (context) => const Scaffold(body: Center(child: Text('Home placeholder'))),
-			},
-		);
-	}
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ViewPick',
+      navigatorKey: navigatorKey,
+      // Use Material 3 with brown seed color
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      // Default to dark mode
+      themeMode: ThemeMode.dark,
+      
+      // Start at the login page and provide a named route for home.
+      initialRoute: '/',
+      routes: {
+        '/': (context) => LoginPage(initialLink: initialLink),
+        '/home': (context) => const HomePage(),
+        '/register': (context) => const RegisterPage(),
+      },
+    );
+  }
 }
