@@ -1,0 +1,154 @@
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+
+/// Frosted, pill-shaped bottom navigation bar with five icons.
+///
+/// - Shows a blurred background (BackdropFilter) with a semi-transparent
+///   surface color so content behind is visible in a frosted way.
+/// - Pill shape with large corner radius to form semicircles on both ends.
+/// - Icons: swap (two-way), home, explore, list, profile.
+/// - Icons use the theme's secondary color. The selected icon shows a
+///   small accent circle behind it.
+class FrostedNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onItemSelected;
+
+  const FrostedNavBar({
+    Key? key,
+    required this.selectedIndex,
+    required this.onItemSelected,
+  }) : super(key: key);
+
+  static const double _height = 72.0;
+  static const double _horizontalPadding = 16.0;
+  static const double _pillRadius = 40.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final secondary = colorScheme.secondary;
+    final surface = colorScheme.surface;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding, vertical: 12),
+      child: SizedBox(
+        height: _height,
+        child: Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_pillRadius),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Container(
+                height: _height,
+                decoration: BoxDecoration(
+                  color: surface.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(_pillRadius),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.06),
+                    width: 1,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(_icons.length, (i) {
+                    final item = _icons[i];
+                    final selected = i == selectedIndex;
+                    return _NavItem(
+                      icon: item.icon,
+                      index: i,
+                      selected: selected,
+                      color: secondary,
+                      onTap: onItemSelected,
+                      semanticsLabel: _labels[i],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final int index;
+  final bool selected;
+  final Color color;
+  final ValueChanged<int> onTap;
+  final String semanticsLabel;
+
+  const _NavItem({
+    Key? key,
+    required this.icon,
+    required this.index,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+    required this.semanticsLabel,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: semanticsLabel,
+        child: InkWell(
+          onTap: () => onTap(index),
+          borderRadius: BorderRadius.circular(32),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  height: selected ? 36 : 32,
+                  width: selected ? 36 : 32,
+                  decoration: BoxDecoration(
+                    color: selected ? color.withOpacity(0.18) : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: selected ? color : color.withOpacity(0.85),
+                    size: selected ? 20 : 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavEntry {
+  final IconData icon;
+  const _NavEntry(this.icon);
+}
+
+const List<_NavEntry> _icons = [
+  _NavEntry(Icons.swipe),
+  _NavEntry(Icons.home_outlined),
+  _NavEntry(Icons.explore_outlined),
+  _NavEntry(Icons.view_list_outlined),
+  _NavEntry(Icons.person_outline),
+];
+
+const List<String> _labels = [
+  'Swipe',
+  'Home',
+  'Explore',
+  'List',
+  'Profile',
+];

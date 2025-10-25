@@ -1,21 +1,32 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../widget/nav_bar.dart';
+import 'swipe_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  final int? initialIndex;
+  HomePage({Key? key, this.initialIndex}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
-  
+  late int _selectedIndex;
+
   final List<Widget> _pages = [
+    const SwapTab(),
     const HomeTab(),
-    const SearchTab(),
+    const SearchTab(), // acts as Explore
+    const ListTab(),
     const ProfileTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex ?? 1;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,30 +46,22 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: _pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: FrostedNavBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
+        onItemSelected: (index) {
+          if (index == 0) {
+            // Navigate to swipe page with no transition (smooth instant change)
+            Navigator.of(context).push(PageRouteBuilder(
+              pageBuilder: (_, __, ___) => const SwipePage(),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+            ));
+            return;
+          }
           setState(() {
             _selectedIndex = index;
           });
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }
@@ -94,5 +97,23 @@ class ProfileTab extends StatelessWidget {
     return const Center(
       child: Text('Profile Tab - Your Info'),
     );
+  }
+}
+
+class SwapTab extends StatelessWidget {
+  const SwapTab({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Swap Tab'));
+  }
+}
+
+class ListTab extends StatelessWidget {
+  const ListTab({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('List Tab'));
   }
 }

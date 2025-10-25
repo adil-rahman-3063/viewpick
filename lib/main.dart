@@ -92,7 +92,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => LoginPage(initialLink: initialLink),
-        '/home': (context) => const HomePage(),
+  '/home': (context) => HomePage(),
         '/register': (context) => const RegisterPage(),
       },
     );

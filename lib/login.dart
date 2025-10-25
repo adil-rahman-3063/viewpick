@@ -73,9 +73,6 @@ class _LoginPageState extends State<LoginPage> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email confirmed — please sign in')));
         return;
       }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opened link: ${uri.toString()}')));
     }
   }
 
