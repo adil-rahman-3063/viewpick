@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,8 +8,9 @@ import 'login.dart';
 Future<void> main() async {
 	WidgetsFlutterBinding.ensureInitialized();
 
+
 	// Load local .env file (copy from .env.example and set your keys)
-	await dotenv.load(fileName: 'credentials.env').catchError((err) {
+	await dotenv.load(fileName: 'assets/credentials.env').catchError((err) {
 		// If loading fails, we'll continue but warn in console.
 		// You can still run the app and fill in env vars later.
 		// ignore: avoid_print
