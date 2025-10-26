@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:ui';
 import 'services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,8 +19,16 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
+  final TextEditingController _languageController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  
+  final List<String> _languages = [
+    'English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Kannada',
+    'Mandarin', 'Japanese', 'Korean', 'French', 'Spanish', 'Portuguese',
+    'Italian', 'German', 'Russian', 'Persian', 'Turkish'
+  ];
+  List<String> _selectedLanguages = [];
 
   @override
   void dispose() {
@@ -28,7 +37,105 @@ class _RegisterPageState extends State<RegisterPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _languageController.dispose();
     super.dispose();
+  }
+
+  void _showLanguageSelector(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Select Languages',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: _languages.map((language) {
+                                final isSelected = _selectedLanguages.contains(language);
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isSelected) {
+                                        _selectedLanguages.remove(language);
+                                      } else {
+                                        _selectedLanguages.add(language);
+                                      }
+                                      _languageController.text = _selectedLanguages.join(', ');
+                                    });
+                                  },
+                                  child: Container(
+                                    width: MediaQuery.of(context).size.width * 0.35,
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? Theme.of(context).colorScheme.primary.withOpacity(0.8)
+                                          : Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? Theme.of(context).colorScheme.primary
+                                            : Theme.of(context).colorScheme.secondary,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      language,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Theme.of(context).colorScheme.onPrimary
+                                            : Theme.of(context).colorScheme.onSecondary,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Done'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _submit() {
@@ -39,8 +146,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _submitAsync() async {
     if (!_formKey.currentState!.validate()) return;
-  final email = _emailController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final name = _nameController.text.trim();
+    final age = _ageController.text.trim();
 
     setState(() => _loading = true);
     try {
@@ -53,6 +162,11 @@ class _RegisterPageState extends State<RegisterPage> {
         email: email,
         password: password,
         emailRedirectTo: redirectUrl,
+        data: {
+          'name': name,
+          'age': age,
+          'languages': _selectedLanguages,
+        },
       );
 
       if (!mounted) return;
@@ -88,10 +202,6 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Register'),
-        centerTitle: true,
-      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
@@ -103,6 +213,17 @@ class _RegisterPageState extends State<RegisterPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Text(
+                    'REGISTER',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'BitcountGridSingle',
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(labelText: 'Name', border: OutlineInputBorder()),
@@ -121,6 +242,20 @@ class _RegisterPageState extends State<RegisterPage> {
                       if (n == null || n <= 0) return 'Enter a valid age';
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _languageController,
+                    decoration: InputDecoration(
+                      labelText: 'Preferred Languages',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.language),
+                        onPressed: () => _showLanguageSelector(context),
+                      ),
+                    ),
+                    readOnly: true,
+                    onTap: () => _showLanguageSelector(context),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
