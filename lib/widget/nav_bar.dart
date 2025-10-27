@@ -1,6 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../pages/swipe_page.dart';
+import '../pages/home_page.dart';
+import '../pages/explore.dart';
 
 /// Frosted, pill-shaped bottom navigation bar with five icons.
 ///
@@ -23,6 +26,43 @@ class FrostedNavBar extends StatelessWidget {
   static const double _height = 72.0;
   static const double _horizontalPadding = 16.0;
   static const double _pillRadius = 40.0;
+
+  /// Handle navigation based on the nav bar item index
+  static void handleNavigation(BuildContext context, int index) {
+    switch (index) {
+      case 0: // Swipe icon - navigate to SwipePage
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const SwipePage(),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        break;
+      case 1: // Home icon - navigate to HomePage showing HomeTab (index 1)
+      case 3: // List icon - navigate to HomePage showing ListTab (index 2)  
+      case 4: // Profile icon - navigate to HomePage showing ProfileTab (index 3)
+        // Map nav index to internal tab index: 1->1, 3->2, 4->3
+        final tabIndex = index == 1 ? 1 : index == 3 ? 2 : 3;
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => HomePage(initialIndex: tabIndex),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        break;
+      case 2: // Explore icon - navigate to ExplorePage
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const ExplorePage(),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +100,7 @@ class FrostedNavBar extends StatelessWidget {
                       index: i,
                       selected: selected,
                       color: secondary,
+                      context: context,
                       onTap: onItemSelected,
                       semanticsLabel: _labels[i],
                     );
@@ -79,6 +120,7 @@ class _NavItem extends StatelessWidget {
   final int index;
   final bool selected;
   final Color color;
+  final BuildContext context;
   final ValueChanged<int> onTap;
   final String semanticsLabel;
 
@@ -88,6 +130,7 @@ class _NavItem extends StatelessWidget {
     required this.index,
     required this.selected,
     required this.color,
+    required this.context,
     required this.onTap,
     required this.semanticsLabel,
   }) : super(key: key);
@@ -100,7 +143,10 @@ class _NavItem extends StatelessWidget {
         selected: selected,
         label: semanticsLabel,
         child: InkWell(
-          onTap: () => onTap(index),
+          onTap: () {
+            FrostedNavBar.handleNavigation(this.context, index);
+            onTap(index); // Still call the callback for state updates
+          },
           borderRadius: BorderRadius.circular(32),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6),
