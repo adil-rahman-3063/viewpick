@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 class MovieSeriesToggle extends StatelessWidget {
   final bool isMovieMode;
@@ -12,28 +13,34 @@ class MovieSeriesToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 250,
-      height: 50,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        color: Colors.white.withOpacity(0.1),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildToggleButton(
-            label: 'Movies',
-            isSelected: isMovieMode,
-            onTap: () => onToggle(true),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(25),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          width: 250,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(25),
+            color: Colors.white.withOpacity(0.1),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          _buildToggleButton(
-            label: 'Series',
-            isSelected: !isMovieMode,
-            onTap: () => onToggle(false),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildToggleButton(
+                label: 'Movies',
+                isSelected: isMovieMode,
+                onTap: () => onToggle(true),
+              ),
+              _buildToggleButton(
+                label: 'Series',
+                isSelected: !isMovieMode,
+                onTap: () => onToggle(false),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -52,9 +59,13 @@ class MovieSeriesToggle extends StatelessWidget {
         height: 40,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: isSelected ? Colors.white.withOpacity(0.2) : Colors.transparent,
+          color: isSelected
+              ? Colors.white.withOpacity(0.2)
+              : Colors.transparent,
           border: Border.all(
-            color: isSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+            color: isSelected
+                ? Colors.white.withOpacity(0.3)
+                : Colors.transparent,
             width: 1,
           ),
         ),
@@ -72,4 +83,3 @@ class MovieSeriesToggle extends StatelessWidget {
     );
   }
 }
-

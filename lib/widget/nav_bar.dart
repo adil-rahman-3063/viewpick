@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../pages/swipe_page.dart';
 import '../pages/home_page.dart';
 import '../pages/explore.dart';
+import '../pages/list_page.dart';
+import '../pages/profile.dart';
 
 /// Frosted, pill-shaped bottom navigation bar with five icons.
 ///
@@ -31,7 +33,7 @@ class FrostedNavBar extends StatelessWidget {
   static void handleNavigation(BuildContext context, int index) {
     switch (index) {
       case 0: // Swipe icon - navigate to SwipePage
-        Navigator.of(context).push(
+        Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (_, __, ___) => const SwipePage(),
             transitionDuration: Duration.zero,
@@ -39,14 +41,10 @@ class FrostedNavBar extends StatelessWidget {
           ),
         );
         break;
-      case 1: // Home icon - navigate to HomePage showing HomeTab (index 1)
-      case 3: // List icon - navigate to HomePage showing ListTab (index 2)  
-      case 4: // Profile icon - navigate to HomePage showing ProfileTab (index 3)
-        // Map nav index to internal tab index: 1->1, 3->2, 4->3
-        final tabIndex = index == 1 ? 1 : index == 3 ? 2 : 3;
+      case 1: // Home icon - navigate to HomePage
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => HomePage(initialIndex: tabIndex),
+            pageBuilder: (_, __, ___) => const HomePage(),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
           ),
@@ -56,6 +54,24 @@ class FrostedNavBar extends StatelessWidget {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (_, __, ___) => const ExplorePage(),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        break;
+      case 3: // List icon - navigate to ListPage
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const ListPage(),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        break;
+      case 4: // Profile icon - navigate to ProfilePage
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const ProfilePage(),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
           ),
@@ -71,7 +87,10 @@ class FrostedNavBar extends StatelessWidget {
     final surface = colorScheme.surface;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _horizontalPadding,
+        vertical: 12,
+      ),
       child: SizedBox(
         height: _height,
         child: Center(
@@ -160,7 +179,9 @@ class _NavItem extends StatelessWidget {
                   height: selected ? 36 : 32,
                   width: selected ? 36 : 32,
                   decoration: BoxDecoration(
-                    color: selected ? color.withOpacity(0.18) : Colors.transparent,
+                    color: selected
+                        ? color.withOpacity(0.18)
+                        : Colors.transparent,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -191,10 +212,4 @@ const List<_NavEntry> _icons = [
   _NavEntry(Icons.person_outline),
 ];
 
-const List<String> _labels = [
-  'Swipe',
-  'Home',
-  'Explore',
-  'List',
-  'Profile',
-];
+const List<String> _labels = ['Swipe', 'Home', 'Explore', 'List', 'Profile'];

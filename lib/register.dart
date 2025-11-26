@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:ui';
-import 'services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -158,7 +157,7 @@ class _RegisterPageState extends State<RegisterPage> {
           ? 'https://viewpick.app/auth'  // Use your Supabase project URL
           : 'viewpick://auth';
           
-      await supabase.auth.signUp(
+      await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
         emailRedirectTo: redirectUrl,

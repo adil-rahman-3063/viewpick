@@ -4,8 +4,13 @@ import 'package:http/http.dart' as http;
 class TMDBService {
   final String _baseUrl = 'https://tmdb-proxy-sz5v.onrender.com';
 
-  Future<List<dynamic>> getPopularMovies() async {
-    final response = await http.get(Uri.parse('$_baseUrl/movies/popular'));
+  Future<List<dynamic>> getPopularMovies({
+    String language = 'en-US',
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/movies/popular?language=$language&page=$page'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -13,8 +18,16 @@ class TMDBService {
     }
   }
 
-  Future<List<dynamic>> getMoviesByGenre(int genreId, {String language = 'en-US'}) async {
-    final response = await http.get(Uri.parse('$_baseUrl/discover/movie?with_genres=$genreId&language=$language'));
+  Future<List<dynamic>> getMoviesByGenre(
+    int genreId, {
+    String language = 'en-US',
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$_baseUrl/discover/movie?with_genres=$genreId&language=$language&page=$page',
+      ),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -32,9 +45,43 @@ class TMDBService {
     }
   }
 
+  Future<List<dynamic>> getMoviesByOriginalLanguage(
+    String languageCode, {
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$_baseUrl/discover/movie?with_original_language=$languageCode&sort_by=popularity.desc&page=$page',
+      ),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'];
+    } else {
+      throw Exception('Failed to load movies by language');
+    }
+  }
+
+  Future<Map<String, dynamic>> getMovieDetails(
+    int movieId, {
+    String language = 'en-US',
+  }) async {
+    final url = '$_baseUrl/movie/$movieId?language=$language';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load movie details: ${response.statusCode}');
+    }
+  }
+
   // TV Series methods
-  Future<List<dynamic>> getPopularTV() async {
-    final response = await http.get(Uri.parse('$_baseUrl/tv/popular'));
+  Future<List<dynamic>> getPopularTV({
+    String language = 'en-US',
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/tv/popular?language=$language&page=$page'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -42,8 +89,16 @@ class TMDBService {
     }
   }
 
-  Future<List<dynamic>> getTVByGenre(int genreId, {String language = 'en-US'}) async {
-    final response = await http.get(Uri.parse('$_baseUrl/discover/tv?with_genres=$genreId&language=$language'));
+  Future<List<dynamic>> getTVByGenre(
+    int genreId, {
+    String language = 'en-US',
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$_baseUrl/discover/tv?with_genres=$genreId&language=$language&page=$page',
+      ),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -61,9 +116,58 @@ class TMDBService {
     }
   }
 
+  Future<List<dynamic>> getTVByOriginalLanguage(
+    String languageCode, {
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$_baseUrl/discover/tv?with_original_language=$languageCode&sort_by=popularity.desc&page=$page',
+      ),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'];
+    } else {
+      throw Exception('Failed to load TV series by language');
+    }
+  }
+
+  Future<Map<String, dynamic>> getTVDetails(
+    int tvId, {
+    String language = 'en-US',
+  }) async {
+    final url = '$_baseUrl/tv/$tvId?language=$language';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      print(
+        'Failed to load TV details. URL: $url, Status: ${response.statusCode}, Body: ${response.body}',
+      );
+      throw Exception('Failed to load TV details: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getSeasonDetails(
+    int tvId,
+    int seasonNumber, {
+    String language = 'en-US',
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/tv/$tvId/season/$seasonNumber?language=$language'),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load season details');
+    }
+  }
+
   // Trending and newly released methods
-  Future<List<dynamic>> getTrendingMovies() async {
-    final response = await http.get(Uri.parse('$_baseUrl/trending/movie'));
+  Future<List<dynamic>> getTrendingMovies({String language = 'en-US'}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/trending/movie?language=$language'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -71,8 +175,10 @@ class TMDBService {
     }
   }
 
-  Future<List<dynamic>> getTrendingTV() async {
-    final response = await http.get(Uri.parse('$_baseUrl/trending/tv'));
+  Future<List<dynamic>> getTrendingTV({String language = 'en-US'}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/trending/tv?language=$language'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -80,8 +186,10 @@ class TMDBService {
     }
   }
 
-  Future<List<dynamic>> getNowPlayingMovies() async {
-    final response = await http.get(Uri.parse('$_baseUrl/movie/now-playing'));
+  Future<List<dynamic>> getNowPlayingMovies({String language = 'en-US'}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/movie/now-playing?language=$language'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -89,8 +197,10 @@ class TMDBService {
     }
   }
 
-  Future<List<dynamic>> getOnTheAirTV() async {
-    final response = await http.get(Uri.parse('$_baseUrl/tv/on-the-air'));
+  Future<List<dynamic>> getOnTheAirTV({String language = 'en-US'}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/tv/on-the-air?language=$language'),
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {

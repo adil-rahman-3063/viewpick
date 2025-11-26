@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
 import '../services/tmdb_service.dart';
 import '../widget/frosted_card.dart';
 import '../widget/nav_bar.dart';
 import '../pages/home_page.dart';
 import '../pages/swipe_page.dart';
+import '../pages/list_page.dart';
+import '../pages/profile.dart';
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({Key? key}) : super(key: key);
@@ -49,13 +50,13 @@ class _ExplorePageState extends State<ExplorePage> {
       allItems.addAll(allSections[1]);
       allItems.addAll(allSections[2]);
       allItems.addAll(allSections[3]);
-      
+
       // Shuffle randomly
       allItems.shuffle();
 
-      // Take 40 items (10 rows x 4 cards)
+      // Take 30 items (10 rows x 3 cards)
       final formattedItems = allItems
-          .take(40)
+          .take(30)
           .map((item) => _formatItem(item))
           .toList();
 
@@ -73,7 +74,7 @@ class _ExplorePageState extends State<ExplorePage> {
     final name = item['title'] ?? item['name'] ?? 'No Title';
     final releaseDate = item['release_date'] ?? item['first_air_date'] ?? '';
     final year = releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '';
-    
+
     return {
       'id': item['id'],
       'title': name,
@@ -85,6 +86,7 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: Column(
         children: [
           // VIEWPICK Title
@@ -103,7 +105,10 @@ class _ExplorePageState extends State<ExplorePage> {
           ),
           // Search bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: TextField(
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
@@ -136,13 +141,19 @@ class _ExplorePageState extends State<ExplorePage> {
                     child: CircularProgressIndicator(color: Colors.white),
                   )
                 : GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      childAspectRatio: 0.5,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(
+                      16.0,
+                      0,
+                      16.0,
+                      100.0,
+                    ), // Added bottom padding for nav bar
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 0.5,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
                     itemCount: _items.length,
                     itemBuilder: (context, index) {
                       final item = _items[index];
@@ -162,35 +173,43 @@ class _ExplorePageState extends State<ExplorePage> {
           switch (index) {
             case 0:
               // Navigate to SwipePage
-              Navigator.of(context).push(PageRouteBuilder(
-                pageBuilder: (_, __, ___) => const SwipePage(),
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-              ));
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const SwipePage(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                ),
+              );
               break;
             case 1:
-              // Navigate to HomePage with HomeTab
-              Navigator.of(context).pushReplacement(PageRouteBuilder(
-                pageBuilder: (_, __, ___) => HomePage(initialIndex: 1),
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-              ));
+              // Navigate to HomePage
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const HomePage(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                ),
+              );
               break;
             case 3:
-              // Navigate to HomePage with ListTab
-              Navigator.of(context).pushReplacement(PageRouteBuilder(
-                pageBuilder: (_, __, ___) => HomePage(initialIndex: 2),
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-              ));
+              // Navigate to ListPage
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const ListPage(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                ),
+              );
               break;
             case 4:
-              // Navigate to HomePage with ProfileTab
-              Navigator.of(context).pushReplacement(PageRouteBuilder(
-                pageBuilder: (_, __, ___) => HomePage(initialIndex: 3),
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-              ));
+              // Navigate to ProfilePage
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const ProfilePage(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                ),
+              );
               break;
           }
         },

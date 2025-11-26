@@ -1,8 +1,34 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math';
 
 final SupabaseClient supabase = Supabase.instance.client;
 
 class SupabaseService {
+  // Language name to TMDB code mapping
+  static final Map<String, String> _languageCodeMap = {
+    'English': 'en-US',
+    'Hindi': 'hi-IN',
+    'Tamil': 'ta-IN',
+    'Telugu': 'te-IN',
+    'Malayalam': 'ml-IN',
+    'Kannada': 'kn-IN',
+    'Mandarin': 'zh-CN',
+    'Japanese': 'ja-JP',
+    'Korean': 'ko-KR',
+    'French': 'fr-FR',
+    'Spanish': 'es-ES',
+    'Portuguese': 'pt-BR',
+    'Italian': 'it-IT',
+    'German': 'de-DE',
+    'Russian': 'ru-RU',
+    'Persian': 'fa-IR',
+    'Turkish': 'tr-TR',
+  };
+
+  // Getter for supported language codes
+  static List<String> get supportedLanguageCodes =>
+      _languageCodeMap.values.toList();
+
   // Sign in with email + password
   static Future<AuthResponse> signIn(String email, String password) async {
     return await supabase.auth.signInWithPassword(
@@ -19,40 +45,60 @@ class SupabaseService {
   // Get current user
   static User? currentUser() => supabase.auth.currentUser;
 
-  // Get user's language preference from metadata
-  static String getUserLanguage() {
+  // Get user's language preferences from metadata and return TMDB codes
+  static List<String> getUserLanguages() {
     final user = supabase.auth.currentUser;
-    if (user == null) return 'en-US';
-    
+    if (user == null) return ['en-US'];
+
     final metadata = user.userMetadata;
-    return metadata?['language'] as String? ?? 'en-US';
+    final languages = metadata?['languages'] as List?;
+
+    if (languages == null || languages.isEmpty) {
+      return ['en-US'];
+    }
+
+    // Convert language names to TMDB codes
+    return languages
+        .map((lang) => _languageCodeMap[lang as String])
+        .where((code) => code != null)
+        .cast<String>()
+        .toList();
+  }
+
+  // Get a random language from user preferences (backward compatibility)
+  static String getUserLanguage() {
+    final languages = getUserLanguages();
+    if (languages.isEmpty) return 'en-US';
+    return languages[Random().nextInt(languages.length)];
   }
 
   // Example: fetch a list from 'titles' table
-  static Future<PostgrestResponse> fetchTitles({int limit = 20}) {
-    return supabase.from('titles').select().limit(limit).execute();
+  static Future<PostgrestResponse> fetchTitles({int limit = 20}) async {
+    return await supabase.from('titles').select().limit(limit);
   }
 
-  // Insert liked genres - saves each genre individually to avoid duplicates
-  static Future<void> addLikedGenres(String genreString) async {
+  // Insert liked movie genres
+  static Future<void> addLikedMovieGenres(String genreString) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
     try {
       // Split genres by comma
-      final genres = genreString.split(',').map((g) => g.trim()).where((g) => g.isNotEmpty);
-      
+      final genres = genreString
+          .split(',')
+          .map((g) => g.trim())
+          .where((g) => g.isNotEmpty);
+
       for (final genre in genres) {
         // Check if this genre already exists for this user
         final existing = await supabase
             .from('liked_movies')
             .select('genre')
             .eq('user_id', userId)
-            .eq('genre', genre)
-            .execute();
-        
+            .eq('genre', genre);
+
         // Only insert if it doesn't exist
-        if (existing.data.isEmpty) {
+        if (existing.isEmpty) {
           await supabase.from('liked_movies').insert({
             'user_id': userId,
             'genre': genre,
@@ -64,52 +110,113 @@ class SupabaseService {
     }
   }
 
-  // Get liked genres for the current user
-  static Future<List<String>> getLikedGenres() async {
+  // Insert liked TV genres
+  static Future<void> addLikedTVGenres(String genreString) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final genres = genreString
+          .split(',')
+          .map((g) => g.trim())
+          .where((g) => g.isNotEmpty);
+
+      for (final genre in genres) {
+        final existing = await supabase
+            .from('liked_series')
+            .select('genre')
+            .eq('user_id', userId)
+            .eq('genre', genre);
+
+        if (existing.isEmpty) {
+          await supabase.from('liked_series').insert({
+            'user_id': userId,
+            'genre': genre,
+          });
+        }
+      }
+    } catch (e) {
+      print('Error adding liked TV genres: $e');
+    }
+  }
+
+  // Get liked movie genres
+  static Future<List<String>> getLikedMovieGenres() async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) {
+      print('getLikedMovieGenres: userId is null, returning empty list.');
       return [];
     }
-    try {
-      final result = await supabase
-          .from('liked_movies')
-          .select('genre')
-          .eq('user_id', userId)
-          .execute();
+    print('getLikedMovieGenres: fetching for userId: $userId');
 
-      final data = result.data as List<Map<String, dynamic>>;
-      // Each row now has a single genre, just extract them
-      return data.map((e) => e['genre'] as String).toSet().toList();
-    } on PostgrestException catch (e) {
-      print('Error fetching liked genres: ${e.message}');
-      return [];
+    try {
+      final data = await supabase
+          .from('liked_movies')
+          .select<List<Map<String, dynamic>>>('genre')
+          .eq('user_id', userId);
+
+      print('getLikedMovieGenres: Supabase data: $data');
+
+      if (data.isEmpty) {
+        print('getLikedMovieGenres: Data is empty.');
+        return [];
+      }
+
+      final genres = data.map((e) => e['genre'] as String).toSet().toList();
+
+      print('getLikedMovieGenres: Parsed genres: $genres');
+      return genres;
     } catch (e) {
       print('An unexpected error occurred while fetching liked genres: $e');
       return [];
     }
   }
 
-  // Check if user has any liked movies
-  static Future<bool> hasLikedMovies() async {
+  // Get liked TV genres
+  static Future<List<String>> getLikedTVGenres() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      final data = await supabase
+          .from('liked_series')
+          .select<List<Map<String, dynamic>>>('genre')
+          .eq('user_id', userId);
+
+      if (data.isEmpty) return [];
+
+      return data.map((e) => e['genre'] as String).toSet().toList();
+    } catch (e) {
+      print('Error fetching liked TV genres: $e');
+      return [];
+    }
+  }
+
+  // Check if user has any liked content
+  static Future<bool> hasLikedContent(bool isMovie) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return false;
-    
+
+    final table = isMovie ? 'liked_movies' : 'liked_series';
+
     try {
       final result = await supabase
-          .from('liked_movies')
+          .from(table)
           .select('genre')
           .eq('user_id', userId)
-          .limit(1)
-          .execute();
-      
-      return (result.data as List).isNotEmpty;
+          .limit(1);
+
+      return (result as List).isNotEmpty;
     } catch (e) {
       return false;
     }
   }
 
   // Watchlist methods
-  static Future<void> addToWatchlist(Map<String, dynamic> item, bool isMovie) async {
+  static Future<void> addToWatchlist(
+    Map<String, dynamic> item,
+    bool isMovie,
+  ) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -133,7 +240,11 @@ class SupabaseService {
     if (userId == null) return;
 
     try {
-      await supabase.from('watchlist').delete().eq('user_id', userId).eq('item_id', itemId);
+      await supabase
+          .from('watchlist')
+          .delete()
+          .eq('user_id', userId)
+          .eq('item_id', itemId);
     } catch (e) {
       print('Error removing from watchlist: $e');
     }
@@ -149,10 +260,9 @@ class SupabaseService {
           .select('item_id')
           .eq('user_id', userId)
           .eq('item_id', itemId)
-          .limit(1)
-          .execute();
+          .limit(1);
 
-      return (result.data as List).isNotEmpty;
+      return (result as List).isNotEmpty;
     } catch (e) {
       return false;
     }
@@ -167,10 +277,11 @@ class SupabaseService {
           .from('watchlist')
           .select()
           .eq('user_id', userId)
-          .order('created_at', ascending: false)
-          .execute();
+          .order('created_at', ascending: false);
 
-      return (result.data as List).map((item) => item as Map<String, dynamic>).toList();
+      return (result as List)
+          .map((item) => item as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print('Error fetching watchlist: $e');
       return [];
@@ -178,7 +289,11 @@ class SupabaseService {
   }
 
   // Watched methods
-  static Future<void> addToWatched(Map<String, dynamic> item, bool isMovie, {int? rating}) async {
+  static Future<void> addToWatched(
+    Map<String, dynamic> item,
+    bool isMovie, {
+    int? rating,
+  }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -204,7 +319,11 @@ class SupabaseService {
     if (userId == null) return;
 
     try {
-      await supabase.from('watched').delete().eq('user_id', userId).eq('item_id', itemId);
+      await supabase
+          .from('watched')
+          .delete()
+          .eq('user_id', userId)
+          .eq('item_id', itemId);
     } catch (e) {
       print('Error removing from watched: $e');
     }
@@ -220,10 +339,9 @@ class SupabaseService {
           .select('item_id')
           .eq('user_id', userId)
           .eq('item_id', itemId)
-          .limit(1)
-          .execute();
+          .limit(1);
 
-      return (result.data as List).isNotEmpty;
+      return (result as List).isNotEmpty;
     } catch (e) {
       return false;
     }
@@ -238,10 +356,11 @@ class SupabaseService {
           .from('watched')
           .select()
           .eq('user_id', userId)
-          .order('watched_date', ascending: false)
-          .execute();
+          .order('watched_date', ascending: false);
 
-      return (result.data as List).map((item) => item as Map<String, dynamic>).toList();
+      return (result as List)
+          .map((item) => item as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print('Error fetching watched: $e');
       return [];
@@ -260,6 +379,41 @@ class SupabaseService {
           .eq('item_id', itemId);
     } catch (e) {
       print('Error updating rating: $e');
+    }
+  }
+
+  // Mark episodes as watched
+  static Future<void> markEpisodesAsWatched(
+    List<Map<String, dynamic>> episodes,
+    Map<String, dynamic> seriesDetails,
+  ) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      // 1. Insert episodes
+      await supabase
+          .from('watched_episodes')
+          .upsert(
+            episodes
+                .map(
+                  (e) => {
+                    ...e,
+                    'user_id': userId,
+                    'watched_at': DateTime.now().toIso8601String(),
+                  },
+                )
+                .toList(),
+            onConflict: 'user_id, series_id, season_number, episode_number',
+          );
+
+      // 2. Ensure series is in 'watched' table
+      final isWatched = await SupabaseService.isWatched(seriesDetails['id']);
+      if (!isWatched) {
+        await addToWatched(seriesDetails, false);
+      }
+    } catch (e) {
+      print('Error marking episodes as watched: $e');
     }
   }
 
