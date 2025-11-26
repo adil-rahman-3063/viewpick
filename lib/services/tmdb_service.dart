@@ -207,4 +207,44 @@ class TMDBService {
       throw Exception('Failed to load on-air TV');
     }
   }
+
+  Future<List<dynamic>> getMovieVideos(
+    int movieId, {
+    String language = 'en-US',
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/movie/$movieId/videos?language=$language'),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'];
+    } else {
+      throw Exception('Failed to load movie videos');
+    }
+  }
+
+  Future<List<dynamic>> getTVVideos(
+    int tvId, {
+    String language = 'en-US',
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/tv/$tvId/videos?language=$language'),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'];
+    } else {
+      throw Exception('Failed to load TV videos');
+    }
+  }
+
+  Future<Map<String, dynamic>> getWatchProviders(int id, bool isMovie) async {
+    final type = isMovie ? 'movie' : 'tv';
+    final response = await http.get(
+      Uri.parse('$_baseUrl/$type/$id/watch/providers'),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'];
+    } else {
+      throw Exception('Failed to load watch providers');
+    }
+  }
 }

@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/tmdb_service.dart';
 import '../widget/frosted_card.dart';
 import '../widget/nav_bar.dart';
-import '../pages/home_page.dart';
-import '../pages/swipe_page.dart';
-import '../pages/list_page.dart';
-import '../pages/profile.dart';
+import '../pages/movies.dart';
+import '../pages/series.dart';
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({Key? key}) : super(key: key);
@@ -74,12 +72,14 @@ class _ExplorePageState extends State<ExplorePage> {
     final name = item['title'] ?? item['name'] ?? 'No Title';
     final releaseDate = item['release_date'] ?? item['first_air_date'] ?? '';
     final year = releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '';
+    final type = item['title'] != null ? 'movie' : 'tv'; // Simple inference
 
     return {
       'id': item['id'],
       'title': name,
       'year': year,
       'image': 'https://image.tmdb.org/t/p/w500${item['poster_path']}',
+      'type': type,
     };
   }
 
@@ -157,10 +157,31 @@ class _ExplorePageState extends State<ExplorePage> {
                     itemCount: _items.length,
                     itemBuilder: (context, index) {
                       final item = _items[index];
-                      return FrostedCard(
-                        imageUrl: item['image'] ?? '',
-                        title: item['title'] ?? 'No Title',
-                        year: item['year'] ?? '',
+                      return GestureDetector(
+                        onTap: () {
+                          if (item['type'] == 'movie') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    MoviePage(movieId: item['id']),
+                              ),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    SeriesPage(tvId: item['id']),
+                              ),
+                            );
+                          }
+                        },
+                        child: FrostedCard(
+                          imageUrl: item['image'] ?? '',
+                          title: item['title'] ?? 'No Title',
+                          year: item['year'] ?? '',
+                        ),
                       );
                     },
                   ),
@@ -170,48 +191,7 @@ class _ExplorePageState extends State<ExplorePage> {
       bottomNavigationBar: FrostedNavBar(
         selectedIndex: 2, // Explore icon is selected
         onItemSelected: (index) {
-          switch (index) {
-            case 0:
-              // Navigate to SwipePage
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const SwipePage(),
-                  transitionDuration: Duration.zero,
-                  reverseTransitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 1:
-              // Navigate to HomePage
-              Navigator.of(context).pushReplacement(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const HomePage(),
-                  transitionDuration: Duration.zero,
-                  reverseTransitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 3:
-              // Navigate to ListPage
-              Navigator.of(context).pushReplacement(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const ListPage(),
-                  transitionDuration: Duration.zero,
-                  reverseTransitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 4:
-              // Navigate to ProfilePage
-              Navigator.of(context).pushReplacement(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const ProfilePage(),
-                  transitionDuration: Duration.zero,
-                  reverseTransitionDuration: Duration.zero,
-                ),
-              );
-              break;
-          }
+          // Navigation is handled by FrostedNavBar internally
         },
       ),
     );

@@ -1,9 +1,11 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
 import '../services/tmdb_service.dart';
+import '../services/supabase_service.dart';
+
 import '../widget/nav_bar.dart';
 import '../widget/movie_series_toggle.dart';
+import 'movies.dart';
+import 'series.dart';
 
 class ListPage extends StatefulWidget {
   const ListPage({Key? key}) : super(key: key);
@@ -99,6 +101,108 @@ class _ListPageState extends State<ListPage> {
     }
   }
 
+  Widget _buildIdCard(Map<String, dynamic> item) {
+    return GestureDetector(
+      onTap: () {
+        if (item['is_movie'] == true) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MoviePage(movieId: item['id']),
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SeriesPage(tvId: item['id']),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        height: 140,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+              ),
+              child: Image.network(
+                item['image'],
+                width: 100,
+                height: 140,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 100,
+                  height: 140,
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.error, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Details
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      item['title'],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Year | Genre
+                    Text(
+                      '${item['year']} | ${item['genre']}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Description
+                    Expanded(
+                      child: Text(
+                        item['description'],
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Filter watchlist based on toggle
@@ -178,117 +282,8 @@ class _ListPageState extends State<ListPage> {
       bottomNavigationBar: FrostedNavBar(
         selectedIndex: 3, // List icon index
         onItemSelected: (index) {
-          if (index == 3) return; // Already on List page
-          FrostedNavBar.handleNavigation(context, index);
+          // Navigation is handled by FrostedNavBar internally
         },
-      ),
-    );
-  }
-
-  Widget _buildIdCard(Map<String, dynamic> item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      height: 140, // Fixed height for "ID card" feel
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Row(
-            children: [
-              // Left Edge: Movie Poster
-              SizedBox(
-                width: 100,
-                height: double.infinity,
-                child: Image.network(
-                  item['image'],
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Center(
-                    child: Icon(Icons.movie, color: Colors.white),
-                  ),
-                ),
-              ),
-
-              // Right Side: Details
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top: Name
-                      Text(
-                        item['title'],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      // Below: Year | Genre
-                      Row(
-                        children: [
-                          Text(
-                            item['year'],
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Colors.white30,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              item['genre'],
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Below that: Description
-                      Expanded(
-                        child: Text(
-                          item['description'],
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

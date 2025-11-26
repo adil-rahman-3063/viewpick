@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'movies.dart';
+import 'series.dart';
 import '../services/supabase_service.dart';
 import '../services/tmdb_service.dart';
 import '../widget/nav_bar.dart';
@@ -344,10 +347,29 @@ class _HomeTabState extends State<HomeTab> {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              return FrostedCard(
-                imageUrl: item['image'] ?? '',
-                title: item['title'] ?? 'No Title',
-                year: item['year'] ?? '',
+              return GestureDetector(
+                onTap: () {
+                  if (widget.isMovieMode) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MoviePage(movieId: item['id']),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SeriesPage(tvId: item['id']),
+                      ),
+                    );
+                  }
+                },
+                child: FrostedCard(
+                  imageUrl: item['image'] ?? '',
+                  title: item['title'] ?? 'No Title',
+                  year: item['year'] ?? '',
+                ),
               );
             },
           ),
