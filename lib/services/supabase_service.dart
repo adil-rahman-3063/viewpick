@@ -293,12 +293,14 @@ class SupabaseService {
     Map<String, dynamic> item,
     bool isMovie, {
     int? rating,
+    int? watchedSeason,
+    int? watchedEpisode,
   }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
     try {
-      await supabase.from('watched').insert({
+      await supabase.from('watched').upsert({
         'user_id': userId,
         'item_id': item['id'],
         'item_type': isMovie ? 'movie' : 'tv',
@@ -308,7 +310,9 @@ class SupabaseService {
         'overview': item['overview'],
         'rating': rating,
         'watched_date': DateTime.now().toIso8601String().split('T')[0],
-      });
+        'watched_season': watchedSeason,
+        'watched_episode': watchedEpisode,
+      }, onConflict: 'user_id, item_id');
     } catch (e) {
       print('Error adding to watched: $e');
     }
@@ -329,22 +333,28 @@ class SupabaseService {
     }
   }
 
-  static Future<bool> isWatched(int itemId) async {
+  static Future<Map<String, dynamic>?> getWatchedItem(int itemId) async {
     final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return false;
+    if (userId == null) return null;
 
     try {
       final result = await supabase
           .from('watched')
-          .select('item_id')
+          .select()
           .eq('user_id', userId)
           .eq('item_id', itemId)
-          .limit(1);
+          .maybeSingle();
 
-      return (result as List).isNotEmpty;
+      return result;
     } catch (e) {
-      return false;
+      print('Error checking watched status: $e');
+      return null;
     }
+  }
+
+  static Future<bool> isWatched(int itemId) async {
+    final item = await getWatchedItem(itemId);
+    return item != null;
   }
 
   static Future<List<Map<String, dynamic>>> getWatched() async {
@@ -382,38 +392,63 @@ class SupabaseService {
     }
   }
 
-  // Mark episodes as watched
-  static Future<void> markEpisodesAsWatched(
-    List<Map<String, dynamic>> episodes,
-    Map<String, dynamic> seriesDetails,
+  // Update watched progress for TV series
+  static Future<void> updateWatchedProgress(
+    int itemId,
+    int season,
+    int episode,
   ) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
     try {
-      // 1. Insert episodes
       await supabase
-          .from('watched_episodes')
-          .upsert(
-            episodes
-                .map(
-                  (e) => {
-                    ...e,
-                    'user_id': userId,
-                    'watched_at': DateTime.now().toIso8601String(),
-                  },
-                )
-                .toList(),
-            onConflict: 'user_id, series_id, season_number, episode_number',
-          );
+          .from('watched')
+          .update({
+            'watched_season': season,
+            'watched_episode': episode,
+            'watched_date': DateTime.now().toIso8601String().split('T')[0],
+          })
+          .eq('user_id', userId)
+          .eq('item_id', itemId);
+    } catch (e) {
+      print('Error updating watched progress: $e');
+    }
+  }
 
-      // 2. Ensure series is in 'watched' table
-      final isWatched = await SupabaseService.isWatched(seriesDetails['id']);
-      if (!isWatched) {
-        await addToWatched(seriesDetails, false);
+  // Helper to mark an entire series as watched
+  static Future<void> markSeriesAsWatched(
+    Map<String, dynamic> show,
+    Map<String, dynamic> details,
+  ) async {
+    try {
+      final seasons = details['seasons'] as List<dynamic>;
+
+      // Find the last season (ignoring season 0 if possible, or just taking max season number)
+      int maxSeason = 0;
+      int maxEpisode = 0;
+
+      for (var season in seasons) {
+        final seasonNum = season['season_number'] as int;
+        final episodeCount = season['episode_count'] as int;
+
+        if (seasonNum > 0 && seasonNum >= maxSeason) {
+          maxSeason = seasonNum;
+          maxEpisode = episodeCount;
+        }
+      }
+
+      if (maxSeason > 0 && maxEpisode > 0) {
+        await addToWatched(
+          show,
+          false,
+          watchedSeason: maxSeason,
+          watchedEpisode: maxEpisode,
+        );
       }
     } catch (e) {
-      print('Error marking episodes as watched: $e');
+      print('Error marking series as watched: $e');
+      rethrow;
     }
   }
 

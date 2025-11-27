@@ -68,7 +68,13 @@ class TMDBService {
     final url = '$_baseUrl/movie/$movieId?language=$language';
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final data = json.decode(response.body);
+      if (data['success'] == false) {
+        throw Exception(
+          data['status_message'] ?? 'Failed to load movie details',
+        );
+      }
+      return data;
     } else {
       throw Exception('Failed to load movie details: ${response.statusCode}');
     }
@@ -83,7 +89,8 @@ class TMDBService {
       Uri.parse('$_baseUrl/tv/popular?language=$language&page=$page'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load popular TV series');
     }
@@ -100,7 +107,8 @@ class TMDBService {
       ),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load TV series by genre');
     }
@@ -109,7 +117,8 @@ class TMDBService {
   Future<Map<int, String>> getTVGenreList() async {
     final response = await http.get(Uri.parse('$_baseUrl/genre/tv/list'));
     if (response.statusCode == 200) {
-      final genres = json.decode(response.body)['genres'] as List<dynamic>;
+      final data = json.decode(response.body);
+      final genres = data['genres'] as List<dynamic>? ?? [];
       return {for (var genre in genres) genre['id']: genre['name']};
     } else {
       throw Exception('Failed to load TV genre list');
@@ -126,7 +135,8 @@ class TMDBService {
       ),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load TV series by language');
     }
@@ -139,7 +149,11 @@ class TMDBService {
     final url = '$_baseUrl/tv/$tvId?language=$language';
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final data = json.decode(response.body);
+      if (data['success'] == false) {
+        throw Exception(data['status_message'] ?? 'Failed to load TV details');
+      }
+      return data;
     } else {
       print(
         'Failed to load TV details. URL: $url, Status: ${response.statusCode}, Body: ${response.body}',
@@ -157,7 +171,13 @@ class TMDBService {
       Uri.parse('$_baseUrl/tv/$tvId/season/$seasonNumber?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final data = json.decode(response.body);
+      if (data['success'] == false) {
+        throw Exception(
+          data['status_message'] ?? 'Failed to load season details',
+        );
+      }
+      return data;
     } else {
       throw Exception('Failed to load season details');
     }
@@ -169,7 +189,8 @@ class TMDBService {
       Uri.parse('$_baseUrl/trending/movie?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load trending movies');
     }
@@ -180,7 +201,8 @@ class TMDBService {
       Uri.parse('$_baseUrl/trending/tv?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load trending TV');
     }
@@ -191,7 +213,8 @@ class TMDBService {
       Uri.parse('$_baseUrl/movie/now-playing?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load now playing movies');
     }
@@ -202,7 +225,8 @@ class TMDBService {
       Uri.parse('$_baseUrl/tv/on-the-air?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
       throw Exception('Failed to load on-air TV');
     }
@@ -216,9 +240,11 @@ class TMDBService {
       Uri.parse('$_baseUrl/movie/$movieId/videos?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
-      throw Exception('Failed to load movie videos');
+      // Return empty list instead of throwing for auxiliary data
+      return [];
     }
   }
 
@@ -230,21 +256,47 @@ class TMDBService {
       Uri.parse('$_baseUrl/tv/$tvId/videos?language=$language'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
     } else {
-      throw Exception('Failed to load TV videos');
+      return [];
     }
   }
 
-  Future<Map<String, dynamic>> getWatchProviders(int id, bool isMovie) async {
+  Future<Map<String, dynamic>?> getWatchProviders(int id, bool isMovie) async {
     final type = isMovie ? 'movie' : 'tv';
     final response = await http.get(
       Uri.parse('$_baseUrl/$type/$id/watch/providers'),
     );
     if (response.statusCode == 200) {
-      return json.decode(response.body)['results'];
+      final data = json.decode(response.body);
+      return data['results'];
     } else {
-      throw Exception('Failed to load watch providers');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getMovieCredits(int movieId) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/movie/$movieId/credits'),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success'] == false) return null;
+      return data;
+    } else {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getTVCredits(int tvId) async {
+    final response = await http.get(Uri.parse('$_baseUrl/tv/$tvId/credits'));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success'] == false) return null;
+      return data;
+    } else {
+      return null;
     }
   }
 }

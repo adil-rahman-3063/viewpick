@@ -40,19 +40,71 @@ class _ListPageState extends State<ListPage> {
           final bool isMovie = item['item_type'] == 'movie';
 
           Map<String, dynamic> details;
+          int? nextSeason;
+          int? nextEpisode;
+
           if (isMovie) {
             details = await _tmdbService.getMovieDetails(id);
           } else {
             details = await _tmdbService.getTVDetails(id);
+
+            // Calculate next episode for series
+            final watchedItem = await SupabaseService.getWatchedItem(id);
+            final currentSeason = watchedItem?['watched_season'] as int? ?? 1;
+            final currentEpisode = watchedItem?['watched_episode'] as int? ?? 0;
+
+            // Logic to determine next episode
+            // We need to know how many episodes are in the current season
+            final seasons = details['seasons'] as List;
+            final seasonData = seasons.firstWhere(
+              (s) => s['season_number'] == currentSeason,
+              orElse: () => null,
+            );
+
+            if (seasonData != null) {
+              final episodeCount = seasonData['episode_count'] as int;
+
+              // If current episode is less than total episodes, just increment episode
+              if (currentEpisode < episodeCount) {
+                nextSeason = currentSeason;
+                nextEpisode = currentEpisode + 1;
+              } else {
+                // If current episode is equal to (or greater than) episode count,
+                // we have finished this season. Move to next season, episode 1.
+                nextSeason = currentSeason + 1;
+                nextEpisode = 1;
+
+                // Check if next season exists in the data
+                final nextSeasonData = seasons.firstWhere(
+                  (s) => s['season_number'] == nextSeason,
+                  orElse: () => null,
+                );
+
+                if (nextSeasonData == null) {
+                  // No more seasons, user is caught up
+                  nextSeason = null;
+                  nextEpisode = null;
+                }
+              }
+            } else {
+              // Fallback
+              nextSeason = 1;
+              nextEpisode = 1;
+            }
           }
 
           // Extract genres
           final genres =
               (details['genres'] as List?)
                   ?.map((g) => g['name'] as String)
-                  .take(2) // Take first 2 genres
+                  .take(2)
                   .join(', ') ??
               '';
+
+          // If it's a series and we have no next episode, don't show it
+          if (!isMovie && (nextSeason == null || nextEpisode == null)) {
+            return null;
+          }
 
           return {
             'id': id,
@@ -68,6 +120,10 @@ class _ListPageState extends State<ListPage> {
                 ? genres
                 : (isMovie ? 'Movie' : 'TV Series'),
             'is_movie': isMovie,
+            'next_season': nextSeason,
+            'next_episode': nextEpisode,
+            'raw_item': item,
+            'details': details,
           };
         } catch (e) {
           print('Error fetching details for item ${item['item_id']}: $e');
@@ -80,12 +136,14 @@ class _ListPageState extends State<ListPage> {
             'description': item['overview'] ?? 'No description',
             'genre': (item['item_type'] == 'tv' ? 'TV Series' : 'Movie'),
             'is_movie': item['item_type'] == 'movie',
+            'raw_item': item,
           };
         }
       });
 
       final results = await Future.wait(futures);
-      formattedList.addAll(results);
+      // Filter out nulls (caught up series)
+      formattedList.addAll(results.whereType<Map<String, dynamic>>());
 
       if (mounted) {
         setState(() {
@@ -102,102 +160,185 @@ class _ListPageState extends State<ListPage> {
   }
 
   Widget _buildIdCard(Map<String, dynamic> item) {
-    return GestureDetector(
-      onTap: () {
-        if (item['is_movie'] == true) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MoviePage(movieId: item['id']),
-            ),
-          );
-        } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SeriesPage(tvId: item['id']),
-            ),
-          );
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        height: 140,
+    return Dismissible(
+      key: Key('watchlist_${item['id']}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.green,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
-        child: Row(
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Image
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                bottomLeft: Radius.circular(20),
-              ),
-              child: Image.network(
-                item['image'],
-                width: 100,
-                height: 140,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 100,
-                  height: 140,
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.error, color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Details
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 8,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      item['title'],
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    // Year | Genre
-                    Text(
-                      '${item['year']} | ${item['genre']}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Description
-                    Expanded(
-                      child: Text(
-                        item['description'],
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
-                        ),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+            Icon(Icons.check, color: Colors.white, size: 30),
+            SizedBox(height: 4),
+            Text(
+              'Mark Watched',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
             ),
           ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        if (item['is_movie'] == true) {
+          // Movie: Mark watched and remove from watchlist
+          await SupabaseService.addToWatched(
+            item['details'] ?? item['raw_item'],
+            true,
+          );
+          await SupabaseService.removeFromWatchlist(item['id']);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Marked ${item['title']} as watched'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          return true; // Remove from list
+        } else {
+          // Series: Mark next episode as watched
+          final nextSeason = item['next_season'];
+          final nextEpisode = item['next_episode'];
+
+          if (nextSeason != null && nextEpisode != null) {
+            await SupabaseService.updateWatchedProgress(
+              item['id'],
+              nextSeason,
+              nextEpisode,
+            );
+
+            // Refresh list to update "Next Episode"
+            _fetchWatchlist();
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Marked S${nextSeason} E${nextEpisode} as watched',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return false; // Don't remove from list
+        }
+      },
+      child: GestureDetector(
+        onTap: () {
+          if (item['is_movie'] == true) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MoviePage(movieId: item['id']),
+              ),
+            );
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SeriesPage(tvId: item['id']),
+              ),
+            );
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          height: 140,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Row(
+            children: [
+              // Image
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                ),
+                child: Image.network(
+                  item['image'],
+                  width: 100,
+                  height: 140,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 100,
+                    height: 140,
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.error, color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Details
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        item['title'],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      // Year | Genre
+                      Text(
+                        '${item['year']} | ${item['genre']}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Description
+                      Flexible(
+                        child: Text(
+                          item['description'],
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (item['is_movie'] == false &&
+                          item['next_season'] != null &&
+                          item['next_episode'] != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Up Next: S${item['next_season']} E${item['next_episode']}',
+                          style: const TextStyle(
+                            color: Colors.amberAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

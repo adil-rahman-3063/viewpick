@@ -575,6 +575,9 @@ class _SwipePageState extends State<SwipePage> {
       final movie = _movies[previousIndex];
       _saveLikedMovie(movie);
 
+      // Add to watchlist automatically on swipe right
+      SupabaseService.addToWatchlist(movie, _isMovieMode);
+
       // Show action dialog after a short delay to allow swipe animation to complete
       Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) {
@@ -642,16 +645,17 @@ class _SwipePageState extends State<SwipePage> {
                   children: [
                     Expanded(
                       child: _buildActionButton(
-                        icon: Icons.bookmark_add_outlined,
-                        label: 'Watchlist',
+                        icon: _isMovieMode
+                            ? Icons.bookmark_add_outlined
+                            : Icons.playlist_play, // Changed icon for Series
+                        label: _isMovieMode ? 'Watchlist' : 'Watched Till',
                         onTap: () async {
                           Navigator.pop(context);
-                          await SupabaseService.addToWatchlist(
-                            movie,
-                            _isMovieMode,
-                          );
-
                           if (_isMovieMode) {
+                            await SupabaseService.addToWatchlist(
+                              movie,
+                              _isMovieMode,
+                            );
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -664,10 +668,8 @@ class _SwipePageState extends State<SwipePage> {
                               );
                             }
                           } else {
-                            // For TV shows, also ask for progress
-                            if (mounted) {
-                              _showWatchedTillDialog(movie);
-                            }
+                            // Series: "Watchlist" button now triggers "Watched Till"
+                            _showWatchedTillDialog(movie);
                           }
                         },
                       ),
@@ -676,7 +678,7 @@ class _SwipePageState extends State<SwipePage> {
                     Expanded(
                       child: _buildActionButton(
                         icon: Icons.check_circle_outline,
-                        label: 'Watched',
+                        label: _isMovieMode ? 'Watched' : 'Watched All',
                         onTap: () async {
                           Navigator.pop(context);
                           if (_isMovieMode) {
@@ -693,7 +695,8 @@ class _SwipePageState extends State<SwipePage> {
                               );
                             }
                           } else {
-                            _showWatchedTillDialog(movie);
+                            // Series: "Watched" button now marks ALL as watched
+                            _markAllWatched(movie);
                           }
                         },
                       ),
@@ -707,6 +710,68 @@ class _SwipePageState extends State<SwipePage> {
         );
       },
     );
+  }
+
+  Future<void> _markAllWatched(Map<String, dynamic> show) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+
+    try {
+      final details = await _tmdbService.getTVDetails(show['id']);
+      final seasons = details['seasons'] as List<dynamic>;
+
+      // Find the last season (ignoring season 0 if possible, or just taking max season number)
+      // Usually we want the latest season that has episodes.
+      int maxSeason = 0;
+      int maxEpisode = 0;
+
+      for (var season in seasons) {
+        final seasonNum = season['season_number'] as int;
+        final episodeCount = season['episode_count'] as int;
+
+        if (seasonNum > 0 && seasonNum >= maxSeason) {
+          maxSeason = seasonNum;
+          maxEpisode = episodeCount;
+        }
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context); // Pop loading
+
+      if (maxSeason > 0 && maxEpisode > 0) {
+        await SupabaseService.addToWatched(
+          show,
+          false,
+          watchedSeason: maxSeason,
+          watchedEpisode: maxEpisode,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Marked ${show['name']} as fully watched'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error marking all as watched: $e');
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to mark as watched'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showWatchedTillDialog(Map<String, dynamic> show) async {
@@ -894,53 +959,6 @@ class _SwipePageState extends State<SwipePage> {
     }
   }
 
-  Future<void> _markWatchedTill(
-    Map<String, dynamic> show,
-    Map<String, dynamic> showDetails,
-    int seasonNum,
-    int episodeNum,
-  ) async {
-    final episodesToMark = <Map<String, dynamic>>[];
-    final seasons = showDetails['seasons'] as List<dynamic>;
-
-    for (final season in seasons) {
-      final sNum = season['season_number'] as int;
-      if (sNum == 0) continue; // Skip specials
-
-      if (sNum < seasonNum) {
-        // Mark all episodes of previous seasons
-        final epCount = season['episode_count'] as int;
-        for (int i = 1; i <= epCount; i++) {
-          episodesToMark.add({
-            'series_id': show['id'],
-            'season_number': sNum,
-            'episode_number': i,
-          });
-        }
-      } else if (sNum == seasonNum) {
-        // Mark episodes up to selected one
-        for (int i = 1; i <= episodeNum; i++) {
-          episodesToMark.add({
-            'series_id': show['id'],
-            'season_number': sNum,
-            'episode_number': i,
-          });
-        }
-      }
-    }
-
-    await SupabaseService.markEpisodesAsWatched(episodesToMark, show);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Marked ${episodesToMark.length} episodes as watched'),
-          backgroundColor: Colors.blue,
-        ),
-      );
-    }
-  }
-
   Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -971,6 +989,30 @@ class _SwipePageState extends State<SwipePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _markWatchedTill(
+    Map<String, dynamic> show,
+    Map<String, dynamic> showDetails,
+    int seasonNum,
+    int episodeNum,
+  ) async {
+    // Use addToWatched to ensure it handles both insert (new) and update (existing)
+    await SupabaseService.addToWatched(
+      show,
+      false, // isMovie = false for TV shows
+      watchedSeason: seasonNum,
+      watchedEpisode: episodeNum,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marked as watched'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   Future<void> _saveLikedMovie(Map<String, dynamic> movie) async {

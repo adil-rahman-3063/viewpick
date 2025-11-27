@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
 
@@ -19,9 +18,17 @@ class _SeriesPageState extends State<SeriesPage> {
   bool _isLoading = true;
   Map<String, dynamic>? _tvDetails;
   Map<String, dynamic>? _providers;
+  List<dynamic>? _cast;
   bool _isInWatchlist = false;
   bool _isLiked = false;
+
+  // New state for watched progress
+  int? _watchedSeason;
+  int? _watchedEpisode;
+  bool _isUpdatingWatched = false;
+
   YoutubePlayerController? _youtubeController;
+  final Map<int, List<dynamic>> _seasonEpisodes = {};
 
   @override
   void initState() {
@@ -39,12 +46,39 @@ class _SeriesPageState extends State<SeriesPage> {
     setState(() => _isLoading = true);
     try {
       final details = await _tmdbService.getTVDetails(widget.tvId);
-      final videos = await _tmdbService.getTVVideos(widget.tvId);
-      final providers = await _tmdbService.getWatchProviders(
-        widget.tvId,
-        false,
-      );
+
+      List<dynamic> videos = [];
+      try {
+        videos = await _tmdbService.getTVVideos(widget.tvId);
+      } catch (e) {
+        print('Error fetching videos: $e');
+      }
+
+      Map<String, dynamic>? providers;
+      try {
+        providers = await _tmdbService.getWatchProviders(widget.tvId, false);
+      } catch (e) {
+        print('Error fetching providers: $e');
+      }
+
+      Map<String, dynamic>? credits;
+      try {
+        credits = await _tmdbService.getTVCredits(widget.tvId);
+      } catch (e) {
+        print('Error fetching credits: $e');
+      }
+
       final inWatchlist = await SupabaseService.isInWatchlist(widget.tvId);
+
+      // Fetch watched status
+      final watchedItem = await SupabaseService.getWatchedItem(widget.tvId);
+      int? wSeason;
+      int? wEpisode;
+
+      if (watchedItem != null) {
+        wSeason = watchedItem['watched_season'];
+        wEpisode = watchedItem['watched_episode'];
+      }
 
       String? trailerId;
       final trailer = videos.firstWhere(
@@ -69,7 +103,10 @@ class _SeriesPageState extends State<SeriesPage> {
         setState(() {
           _tvDetails = details;
           _providers = providers;
+          _cast = credits?['cast'];
           _isInWatchlist = inWatchlist;
+          _watchedSeason = wSeason;
+          _watchedEpisode = wEpisode;
           _isLoading = false;
         });
       }
@@ -79,31 +116,54 @@ class _SeriesPageState extends State<SeriesPage> {
     }
   }
 
+  Future<void> _fetchSeasonDetails(int seasonNumber) async {
+    if (_seasonEpisodes.containsKey(seasonNumber)) return;
+
+    try {
+      final seasonData = await _tmdbService.getSeasonDetails(
+        widget.tvId,
+        seasonNumber,
+      );
+      if (mounted) {
+        setState(() {
+          _seasonEpisodes[seasonNumber] = seasonData['episodes'];
+        });
+      }
+    } catch (e) {
+      print('Error fetching season $seasonNumber: $e');
+    }
+  }
+
   Future<void> _toggleWatchlist() async {
     if (_tvDetails == null) return;
 
-    setState(() => _isInWatchlist = !_isInWatchlist);
-
     try {
       if (_isInWatchlist) {
+        // If in watchlist, "Mark Watched" logic (Mark entire series)
+        await SupabaseService.markSeriesAsWatched(_tvDetails!, _tvDetails!);
+        await SupabaseService.removeFromWatchlist(widget.tvId);
+
+        setState(() => _isInWatchlist = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Marked series as watched'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // If not in watchlist, "Add to Watchlist" logic
         await SupabaseService.addToWatchlist(_tvDetails!, false);
+        setState(() => _isInWatchlist = true);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Added to Watchlist'),
             backgroundColor: Colors.green,
           ),
         );
-      } else {
-        await SupabaseService.removeFromWatchlist(widget.tvId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Removed from Watchlist'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
-      setState(() => _isInWatchlist = !_isInWatchlist);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -127,6 +187,57 @@ class _SeriesPageState extends State<SeriesPage> {
         backgroundColor: Colors.pink,
       ),
     );
+  }
+
+  Future<void> _updateProgress(int seasonNumber, int episodeNumber) async {
+    if (_isUpdatingWatched) return;
+    setState(() => _isUpdatingWatched = true);
+
+    final oldSeason = _watchedSeason;
+    final oldEpisode = _watchedEpisode;
+
+    // Optimistic update
+    setState(() {
+      _watchedSeason = seasonNumber;
+      _watchedEpisode = episodeNumber;
+    });
+
+    try {
+      // Ensure it's in the watched table first (if not already)
+      final isWatched = await SupabaseService.isWatched(widget.tvId);
+      if (!isWatched && _tvDetails != null) {
+        await SupabaseService.addToWatched(
+          _tvDetails!,
+          false,
+          watchedSeason: seasonNumber,
+          watchedEpisode: episodeNumber,
+        );
+      } else {
+        await SupabaseService.updateWatchedProgress(
+          widget.tvId,
+          seasonNumber,
+          episodeNumber,
+        );
+      }
+    } catch (e) {
+      // Revert on error
+      setState(() {
+        _watchedSeason = oldSeason;
+        _watchedEpisode = oldEpisode;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating progress: $e')));
+    } finally {
+      if (mounted) setState(() => _isUpdatingWatched = false);
+    }
+  }
+
+  bool _isEpisodeWatched(int season, int episode) {
+    if (_watchedSeason == null || _watchedEpisode == null) return false;
+    if (season < _watchedSeason!) return true;
+    if (season == _watchedSeason! && episode <= _watchedEpisode!) return true;
+    return false;
   }
 
   @override
@@ -168,6 +279,7 @@ class _SeriesPageState extends State<SeriesPage> {
         .map((g) => g['name'])
         .join(', ');
     final numberOfSeasons = _tvDetails!['number_of_seasons'];
+    final seasons = _tvDetails!['seasons'] as List;
 
     final usProviders = _providers?['US'] ?? _providers?.values.firstOrNull;
     final flatrate = usProviders?['flatrate'] as List?;
@@ -193,7 +305,7 @@ class _SeriesPageState extends State<SeriesPage> {
               Container(
                 height: 250,
                 width: double.infinity,
-                color: Colors.black, // Keep black for video player
+                color: Colors.black,
                 child: YoutubePlayer(
                   controller: _youtubeController!,
                   showVideoProgressIndicator: true,
@@ -286,12 +398,11 @@ class _SeriesPageState extends State<SeriesPage> {
                     children: [
                       Expanded(
                         child: _buildFrostedButton(
-                          icon: _isInWatchlist ? Icons.check : Icons.add,
-                          label: _isInWatchlist
-                              ? 'In Watchlist'
-                              : 'Add to Watchlist',
+                          icon: _isInWatchlist
+                              ? Icons.check_circle_outline
+                              : Icons.add,
+                          label: _isInWatchlist ? 'Mark Watched' : 'Watchlist',
                           onTap: _toggleWatchlist,
-                          isActive: _isInWatchlist,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -418,6 +529,223 @@ class _SeriesPageState extends State<SeriesPage> {
                     ),
                     const SizedBox(height: 24),
                   ],
+
+                  if (_cast != null && _cast!.isNotEmpty) ...[
+                    const Text(
+                      'Cast',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 160,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _cast!.length,
+                        itemBuilder: (context, index) {
+                          final actor = _cast![index];
+                          final profilePath = actor['profile_path'];
+                          return Container(
+                            width: 100,
+                            margin: const EdgeInsets.only(right: 12),
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: Colors.grey[800],
+                                    child: profilePath != null
+                                        ? Image.network(
+                                            'https://image.tmdb.org/t/p/w200$profilePath',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
+                                                ),
+                                          )
+                                        : const Icon(
+                                            Icons.person,
+                                            color: Colors.white,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  actor['name'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  actor['character'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  const Text(
+                    'Seasons',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...seasons.map((season) {
+                    final seasonNum = season['season_number'];
+                    final episodeCount = season['episode_count'];
+                    final episodes = _seasonEpisodes[seasonNum];
+
+                    return Card(
+                      color: Colors.white.withOpacity(0.05),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: ExpansionTile(
+                        title: Text(
+                          season['name'],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '$episodeCount Episodes',
+                          style: const TextStyle(color: Colors.white60),
+                        ),
+                        iconColor: Colors.white,
+                        collapsedIconColor: Colors.white60,
+                        onExpansionChanged: (expanded) {
+                          if (expanded) {
+                            _fetchSeasonDetails(seasonNum);
+                          }
+                        },
+                        children: [
+                          if (episodes == null)
+                            const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            ...episodes.map<Widget>((episode) {
+                              final epNum = episode['episode_number'];
+                              final isWatched = _isEpisodeWatched(
+                                seasonNum,
+                                epNum,
+                              );
+
+                              return Dismissible(
+                                key: Key('S${seasonNum}E$epNum'),
+                                background: Container(
+                                  color: Colors.green,
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.only(left: 20),
+                                  child: const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                secondaryBackground: Container(
+                                  color: Colors.red,
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                confirmDismiss: (direction) async {
+                                  if (direction ==
+                                      DismissDirection.startToEnd) {
+                                    // Mark as watched (and previous)
+                                    await _updateProgress(seasonNum, epNum);
+                                    return false; // Don't dismiss the tile
+                                  } else {
+                                    // Swipe left - maybe unmark?
+                                    // For now, let's just treat it as unmark current?
+                                    // Or maybe just do nothing for now as per plan
+                                    return false;
+                                  }
+                                },
+                                child: ListTile(
+                                  title: Text(
+                                    '${episode['episode_number']}. ${episode['name']}',
+                                    style: TextStyle(
+                                      color: isWatched
+                                          ? Colors.greenAccent
+                                          : Colors.white,
+                                      fontWeight: isWatched
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (episode['overview'] != null &&
+                                          episode['overview'].isNotEmpty)
+                                        Text(
+                                          episode['overview'],
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                  trailing: IconButton(
+                                    icon: Icon(
+                                      isWatched
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isWatched
+                                          ? Colors.green
+                                          : Colors.white54,
+                                    ),
+                                    onPressed: () =>
+                                        _updateProgress(seasonNum, epNum),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

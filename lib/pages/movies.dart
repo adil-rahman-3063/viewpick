@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
 
@@ -18,10 +18,10 @@ class _MoviePageState extends State<MoviePage> {
   final TMDBService _tmdbService = TMDBService();
   bool _isLoading = true;
   Map<String, dynamic>? _movieDetails;
-  List<dynamic> _videos = [];
   Map<String, dynamic>? _providers;
+  List<dynamic>? _cast;
   bool _isInWatchlist = false;
-  bool _isLiked = false; // Tracks if the user has liked this genre/movie
+  bool _isLiked = false;
   YoutubePlayerController? _youtubeController;
 
   @override
@@ -40,20 +40,31 @@ class _MoviePageState extends State<MoviePage> {
     setState(() => _isLoading = true);
     try {
       final details = await _tmdbService.getMovieDetails(widget.movieId);
-      final videos = await _tmdbService.getMovieVideos(widget.movieId);
-      final providers = await _tmdbService.getWatchProviders(
-        widget.movieId,
-        true,
-      );
+
+      List<dynamic> videos = [];
+      try {
+        videos = await _tmdbService.getMovieVideos(widget.movieId);
+      } catch (e) {
+        print('Error fetching videos: $e');
+      }
+
+      Map<String, dynamic>? providers;
+      try {
+        providers = await _tmdbService.getWatchProviders(widget.movieId, true);
+      } catch (e) {
+        print('Error fetching providers: $e');
+      }
+
+      Map<String, dynamic>? credits;
+      try {
+        credits = await _tmdbService.getMovieCredits(widget.movieId);
+      } catch (e) {
+        print('Error fetching credits: $e');
+      }
+
       final inWatchlist = await SupabaseService.isInWatchlist(widget.movieId);
 
-      // Check if user has liked any genre of this movie (approximation for "Liked")
-      // Since we don't have a specific "Liked Movies" table for items yet, we use genres.
-      // But for UI feedback, we can just toggle the local state for now or check genres.
-      // For now, let's just default to false and allow "liking" to add genres.
-
       String? trailerId;
-      // Find the first official trailer on YouTube
       final trailer = videos.firstWhere(
         (v) => v['site'] == 'YouTube' && v['type'] == 'Trailer',
         orElse: () => null,
@@ -62,7 +73,6 @@ class _MoviePageState extends State<MoviePage> {
       if (trailer != null) {
         trailerId = trailer['key'];
       } else if (videos.isNotEmpty && videos.first['site'] == 'YouTube') {
-        // Fallback to any YouTube video
         trailerId = videos.first['key'];
       }
 
@@ -76,8 +86,8 @@ class _MoviePageState extends State<MoviePage> {
       if (mounted) {
         setState(() {
           _movieDetails = details;
-          _videos = videos;
           _providers = providers;
+          _cast = credits?['cast'];
           _isInWatchlist = inWatchlist;
           _isLoading = false;
         });
@@ -91,29 +101,33 @@ class _MoviePageState extends State<MoviePage> {
   Future<void> _toggleWatchlist() async {
     if (_movieDetails == null) return;
 
-    setState(() => _isInWatchlist = !_isInWatchlist); // Optimistic update
-
     try {
       if (_isInWatchlist) {
+        // If in watchlist, "Mark Watched" logic
+        await SupabaseService.addToWatched(_movieDetails!, true);
+        await SupabaseService.removeFromWatchlist(widget.movieId);
+
+        setState(() => _isInWatchlist = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Marked as watched'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // If not in watchlist, "Add to Watchlist" logic
         await SupabaseService.addToWatchlist(_movieDetails!, true);
+        setState(() => _isInWatchlist = true);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Added to Watchlist'),
             backgroundColor: Colors.green,
           ),
         );
-      } else {
-        await SupabaseService.removeFromWatchlist(widget.movieId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Removed from Watchlist'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
-      // Revert on error
-      setState(() => _isInWatchlist = !_isInWatchlist);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -123,8 +137,6 @@ class _MoviePageState extends State<MoviePage> {
   Future<void> _toggleLike() async {
     if (_movieDetails == null) return;
 
-    // Since we only support adding genres, we'll just do that for now.
-    // And show a visual feedback.
     setState(() => _isLiked = true);
 
     final genres = (_movieDetails!['genres'] as List)
@@ -179,8 +191,10 @@ class _MoviePageState extends State<MoviePage> {
     final genres = (_movieDetails!['genres'] as List)
         .map((g) => g['name'])
         .join(', ');
+    final runtime = _movieDetails!['runtime'] != null
+        ? '${_movieDetails!['runtime']} min'
+        : '';
 
-    // Get providers for US (or default to first available)
     final usProviders = _providers?['US'] ?? _providers?.values.firstOrNull;
     final flatrate = usProviders?['flatrate'] as List?;
     final rent = usProviders?['rent'] as List?;
@@ -201,12 +215,11 @@ class _MoviePageState extends State<MoviePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Section: Trailer or Poster
             if (_youtubeController != null)
               Container(
                 height: 250,
                 width: double.infinity,
-                color: Colors.black, // Keep black for video player
+                color: Colors.black,
                 child: YoutubePlayer(
                   controller: _youtubeController!,
                   showVideoProgressIndicator: true,
@@ -249,7 +262,6 @@ class _MoviePageState extends State<MoviePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title and Year
                   Text(
                     '$title ($year)',
                     style: const TextStyle(
@@ -261,7 +273,6 @@ class _MoviePageState extends State<MoviePage> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Rating and Genres
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 20),
@@ -272,6 +283,14 @@ class _MoviePageState extends State<MoviePage> {
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        runtime,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -289,20 +308,19 @@ class _MoviePageState extends State<MoviePage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Action Buttons
                   Row(
                     children: [
                       Expanded(
                         child: _buildFrostedButton(
-                          icon: _isInWatchlist ? Icons.check : Icons.add,
-                          label: _isInWatchlist
-                              ? 'In Watchlist'
-                              : 'Add to Watchlist',
+                          icon: _isInWatchlist
+                              ? Icons.check_circle_outline
+                              : Icons.add,
+                          label: _isInWatchlist ? 'Mark Watched' : 'Watchlist',
                           onTap: _toggleWatchlist,
                           isActive: _isInWatchlist,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: _buildFrostedButton(
                           icon: _isLiked
@@ -311,14 +329,14 @@ class _MoviePageState extends State<MoviePage> {
                           label: 'Like',
                           onTap: _toggleLike,
                           isActive: _isLiked,
-                          activeColor: Colors.red,
+                          activeColor: Colors.pink,
                         ),
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 24),
 
-                  // Overview
                   const Text(
                     'Overview',
                     style: TextStyle(
@@ -338,7 +356,6 @@ class _MoviePageState extends State<MoviePage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Where to Watch
                   if (flatrate != null && flatrate.isNotEmpty) ...[
                     const Text(
                       'Stream On',
@@ -396,6 +413,113 @@ class _MoviePageState extends State<MoviePage> {
                         );
                       }).toList(),
                     ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (buy != null && buy.isNotEmpty) ...[
+                    const Text(
+                      'Buy',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: buy.map((provider) {
+                        return Tooltip(
+                          message: provider['provider_name'],
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              'https://image.tmdb.org/t/p/original${provider['logo_path']}',
+                              width: 50,
+                              height: 50,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (_cast != null && _cast!.isNotEmpty) ...[
+                    const Text(
+                      'Cast',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 160,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _cast!.length,
+                        itemBuilder: (context, index) {
+                          final actor = _cast![index];
+                          final profilePath = actor['profile_path'];
+                          return Container(
+                            width: 100,
+                            margin: const EdgeInsets.only(right: 12),
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: Colors.grey[800],
+                                    child: profilePath != null
+                                        ? Image.network(
+                                            'https://image.tmdb.org/t/p/w200$profilePath',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
+                                                ),
+                                          )
+                                        : const Icon(
+                                            Icons.person,
+                                            color: Colors.white,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  actor['name'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  actor['character'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ],
               ),
