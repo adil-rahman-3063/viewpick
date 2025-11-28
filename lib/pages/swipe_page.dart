@@ -128,7 +128,21 @@ class _SwipePageState extends State<SwipePage> {
         print('Error loading TV genres: $e');
       }
 
-      await _fetchMovies();
+      // Ensure we have at least some genres or handle empty map later
+      if (_tvGenreMap.isEmpty) {
+        print('Warning: TV Genre map is empty. Retrying...');
+        try {
+          _tvGenreMap = await _tmdbService.getTVGenreList();
+        } catch (e) {
+          print('Retry failed: $e');
+        }
+      }
+
+      // Initial fetch (small batch for speed)
+      await _fetchMovies(count: 6);
+
+      // Pre-fetch more content in background
+      _loadMoreContent(count: 15);
     } catch (e) {
       print('Error initializing page: $e');
       if (mounted) {
@@ -141,14 +155,14 @@ class _SwipePageState extends State<SwipePage> {
 
   bool _isFetchingMore = false;
 
-  Future<void> _fetchMovies() async {
+  Future<void> _fetchMovies({int count = 6}) async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final newContent = await _fetchContentBatch();
+      final newContent = await _fetchContentBatch(targetCount: count);
 
       if (mounted) {
         setState(() {
@@ -166,7 +180,9 @@ class _SwipePageState extends State<SwipePage> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchContentBatch() async {
+  Future<List<Map<String, dynamic>>> _fetchContentBatch({
+    int targetCount = 6,
+  }) async {
     try {
       final activeGenreMap = _isMovieMode ? _genreMap : _tvGenreMap;
 
@@ -326,32 +342,42 @@ class _SwipePageState extends State<SwipePage> {
 
       // 3. Prepare Random Content Fetch
       Future<void> fetchRandom() async {
-        try {
-          final randomPage = Random().nextInt(50) + 1;
-          final supportedLanguages = SupabaseService.supportedLanguageCodes;
-          final randomLangString =
-              supportedLanguages[Random().nextInt(supportedLanguages.length)];
-          final randomLangCode = randomLangString.split('-')[0];
+        int attempts = 0;
+        final supportedLanguages = SupabaseService.supportedLanguageCodes;
 
-          final content = _isMovieMode
-              ? await _tmdbService.getMoviesByOriginalLanguage(
-                  randomLangCode,
-                  page: randomPage,
-                )
-              : await _tmdbService.getTVByOriginalLanguage(
-                  randomLangCode,
-                  page: randomPage,
-                );
+        while (randomContent.length < 3 && attempts < 5) {
+          attempts++;
+          try {
+            // Use safer page limit (20 instead of 50) to avoid empty pages
+            final randomPage = Random().nextInt(20) + 1;
+            final randomLangString =
+                supportedLanguages[Random().nextInt(supportedLanguages.length)];
+            final randomLangCode = randomLangString.split('-')[0];
 
-          content.shuffle();
-          final filteredRandom = content.where((item) => !isDisliked(item));
+            final content = _isMovieMode
+                ? await _tmdbService.getMoviesByOriginalLanguage(
+                    randomLangCode,
+                    page: randomPage,
+                  )
+                : await _tmdbService.getTVByOriginalLanguage(
+                    randomLangCode,
+                    page: randomPage,
+                  );
 
-          for (var item in filteredRandom) {
-            if (randomContent.length >= 3) break;
-            randomContent.add(_formatData(item));
+            content.shuffle();
+            final filteredRandom = content.where((item) => !isDisliked(item));
+
+            for (var item in filteredRandom) {
+              if (randomContent.length >= 3) break;
+              // Check for duplicates against personalized content too
+              if (!personalizedContent.any((p) => p['id'] == item['id']) &&
+                  !randomContent.any((r) => r['id'] == item['id'])) {
+                randomContent.add(_formatData(item));
+              }
+            }
+          } catch (e) {
+            print('Error in random fetch attempt $attempts: $e');
           }
-        } catch (e) {
-          // ignore
         }
       }
 
@@ -366,12 +392,42 @@ class _SwipePageState extends State<SwipePage> {
         }
       }
 
+      // If we haven't met the target count, loop to fetch more
+      if (allContent.length < targetCount) {
+        // Recursive call or loop could be used, but let's just do a simple fallback fill
+        // to avoid infinite recursion complexity.
+        int attempts = 0;
+        while (allContent.length < targetCount && attempts < 3) {
+          attempts++;
+          try {
+            final randomPage = Random().nextInt(20) + 1;
+            final fallback = _isMovieMode
+                ? await _tmdbService.getPopularMovies(page: randomPage)
+                : await _tmdbService.getPopularTV(page: randomPage);
+
+            final formattedFallback = fallback
+                .where((item) => !isDisliked(item))
+                .map((item) => _formatData(item));
+
+            for (var item in formattedFallback) {
+              if (allContent.length >= targetCount) break;
+              if (!allContent.any((existing) => existing['id'] == item['id'])) {
+                allContent.add(item);
+              }
+            }
+          } catch (e) {
+            print('Error filling batch: $e');
+          }
+        }
+      }
+
       // Fallback
       if (allContent.isEmpty) {
         debugPrint('Batch empty, fetching popular fallback...');
+        final randomPage = Random().nextInt(20) + 1;
         final fallback = _isMovieMode
-            ? await _tmdbService.getPopularMovies(page: 1)
-            : await _tmdbService.getPopularTV(page: 1);
+            ? await _tmdbService.getPopularMovies(page: randomPage)
+            : await _tmdbService.getPopularTV(page: randomPage);
 
         return fallback
             .where((item) => !isDisliked(item))
@@ -387,16 +443,24 @@ class _SwipePageState extends State<SwipePage> {
     }
   }
 
-  Future<void> _loadMoreContent() async {
+  Future<void> _loadMoreContent({int count = 15}) async {
     if (_isFetchingMore) return;
 
     _isFetchingMore = true;
     print('Fetching more content...');
 
+    int retryCount = 0;
+    bool addedContent = false;
+
     try {
-      final newContent = await _fetchContentBatch();
-      if (newContent.isNotEmpty && mounted) {
-        setState(() {
+      while (!addedContent && retryCount < 3) {
+        if (retryCount > 0) {
+          print('Retrying fetch (attempt ${retryCount + 1})...');
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+
+        final newContent = await _fetchContentBatch(targetCount: count);
+        if (newContent.isNotEmpty && mounted) {
           // Filter out duplicates
           final uniqueContent = newContent.where((newItem) {
             return !_movies.any(
@@ -405,12 +469,18 @@ class _SwipePageState extends State<SwipePage> {
           }).toList();
 
           if (uniqueContent.isNotEmpty) {
-            _movies.addAll(uniqueContent);
+            setState(() {
+              _movies.addAll(uniqueContent);
+            });
             print(
               'Added ${uniqueContent.length} new items. Total: ${_movies.length}',
             );
+            addedContent = true;
+          } else {
+            print('Fetched content was all duplicates.');
           }
-        });
+        }
+        retryCount++;
       }
     } catch (e) {
       print('Error loading more content: $e');
@@ -518,6 +588,7 @@ class _SwipePageState extends State<SwipePage> {
                         cardsCount: _movies.length,
                         onSwipe: _onSwipe,
                         onUndo: _onUndo,
+                        isLoop: false,
                         numberOfCardsDisplayed: _movies.length < 3
                             ? _movies.length
                             : 3,
@@ -778,10 +849,15 @@ class _SwipePageState extends State<SwipePage> {
       });
     }
 
-    // Infinite scroll trigger: Load more when interacting with the 2nd card of a batch
-    // Batch size is 6. 2nd card indices: 1, 7, 13, etc.
-    if (previousIndex % 6 == 1) {
-      _loadMoreContent();
+    // Infinite scroll trigger: Load more when we have fewer than 10 cards remaining
+    // This ensures we have a buffer.
+    if (_movies.length - previousIndex <= 10) {
+      _loadMoreContent(count: 15);
+    }
+
+    // If we are at the very last card, try to load more immediately
+    if (previousIndex == _movies.length - 1) {
+      _loadMoreContent(count: 6); // Emergency fetch
     }
 
     return true;
@@ -1211,6 +1287,9 @@ class _SwipePageState extends State<SwipePage> {
                           Navigator.pop(context);
                           if (_isMovieMode) {
                             await SupabaseService.addToWatched(movie, true);
+                            await SupabaseService.removeFromWatchlist(
+                              movie['id'],
+                            );
                             if (mounted) {
                               if (mounted) {
                                 Toast.show(
@@ -1275,6 +1354,7 @@ class _SwipePageState extends State<SwipePage> {
           watchedSeason: maxSeason,
           watchedEpisode: maxEpisode,
         );
+        await SupabaseService.removeFromWatchlist(show['id']);
 
         if (mounted) {
           if (mounted) {
