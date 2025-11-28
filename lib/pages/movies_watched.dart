@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
-import '../widget/toast.dart';
+
 import 'movies.dart';
 
 class MoviesWatchedPage extends StatefulWidget {
