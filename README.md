@@ -1,4 +1,7 @@
 # ViewPick 🎬
+web version - https://adil-rahman-3063.github.io/viewpick_web/
+
+
 
 **ViewPick** is a modern, interactive movie and TV show discovery application built with Flutter. It reimagines how you find your next watch by combining a Tinder-style swipe interface with smart, personalized recommendations.
 

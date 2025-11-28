@@ -12,6 +12,8 @@ import 'list_page.dart';
 import 'profile.dart';
 import '../widget/toast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'movies.dart';
+import 'series.dart';
 
 class SwipePage extends StatefulWidget {
   const SwipePage({Key? key}) : super(key: key);
@@ -722,95 +724,114 @@ class _SwipePageState extends State<SwipePage> {
       opacity = (horizontalThresholdPercentage.abs() / 100.0).clamp(0.0, 0.5);
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          movie['image'] ?? '',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(
-                                child: Icon(
-                                  Icons.movie,
-                                  color: Colors.white,
-                                  size: 50,
+    return GestureDetector(
+      onTap: () {
+        if (_isMovieMode) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MoviePage(movieId: movie['id']),
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SeriesPage(tvId: movie['id']),
+            ),
+          );
+        }
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            movie['image'] ?? '',
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Center(
+                                  child: Icon(
+                                    Icons.movie,
+                                    color: Colors.white,
+                                    size: 50,
+                                  ),
                                 ),
-                              ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      movie['name'] ?? 'No Title',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          movie['year'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            movie['genre'] ?? '',
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        movie['name'] ?? 'No Title',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            movie['year'] ?? '',
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white70,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      movie['description'] ?? 'No Description',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white60,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              movie['genre'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white70,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (overlayColor != null)
-                Container(
-                  decoration: BoxDecoration(
-                    color: overlayColor.withOpacity(opacity),
-                    borderRadius: BorderRadius.circular(20),
+                      const SizedBox(height: 8),
+                      Text(
+                        movie['description'] ?? 'No Description',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white60,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-            ],
+                if (overlayColor != null)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: overlayColor.withOpacity(opacity),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
