@@ -22,12 +22,14 @@ class TMDBService {
     int genreId, {
     String language = 'en-US',
     int page = 1,
+    String? withOriginalLanguage,
   }) async {
-    final response = await http.get(
-      Uri.parse(
-        '$_baseUrl/discover/movie?with_genres=$genreId&language=$language&page=$page',
-      ),
-    );
+    String url =
+        '$_baseUrl/discover/movie?with_genres=$genreId&language=$language&page=$page';
+    if (withOriginalLanguage != null) {
+      url += '&with_original_language=$withOriginalLanguage';
+    }
+    final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'];
     } else {
@@ -100,12 +102,14 @@ class TMDBService {
     int genreId, {
     String language = 'en-US',
     int page = 1,
+    String? withOriginalLanguage,
   }) async {
-    final response = await http.get(
-      Uri.parse(
-        '$_baseUrl/discover/tv?with_genres=$genreId&language=$language&page=$page',
-      ),
-    );
+    String url =
+        '$_baseUrl/discover/tv?with_genres=$genreId&language=$language&page=$page';
+    if (withOriginalLanguage != null) {
+      url += '&with_original_language=$withOriginalLanguage';
+    }
+    final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['results'] ?? [];
@@ -297,6 +301,24 @@ class TMDBService {
       return data;
     } else {
       return null;
+    }
+  }
+
+  Future<List<dynamic>> searchMulti(
+    String query, {
+    String language = 'en-US',
+    int page = 1,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$_baseUrl/search/multi?query=$query&language=$language&page=$page',
+      ),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return data['results'] ?? [];
+    } else {
+      throw Exception('Failed to search');
     }
   }
 }

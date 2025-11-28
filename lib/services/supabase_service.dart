@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 
 final SupabaseClient supabase = Supabase.instance.client;
 
@@ -70,6 +71,20 @@ class SupabaseService {
     final languages = getUserLanguages();
     if (languages.isEmpty) return 'en-US';
     return languages[Random().nextInt(languages.length)];
+  }
+
+  // Update user metadata (name, age, languages)
+  static Future<UserResponse> updateUserMetadata(
+    Map<String, dynamic> data,
+  ) async {
+    return await supabase.auth.updateUser(UserAttributes(data: data));
+  }
+
+  // Update password
+  static Future<UserResponse> updatePassword(String newPassword) async {
+    return await supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
   }
 
   // Example: fetch a list from 'titles' table
@@ -449,6 +464,45 @@ class SupabaseService {
     } catch (e) {
       print('Error marking series as watched: $e');
       rethrow;
+    }
+  }
+
+  // Dislike methods
+  static Future<void> addDislike({
+    required int itemId,
+    required bool isMovie,
+    required String reason,
+    Map<String, dynamic>? details,
+  }) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      await supabase.from('dislikes').insert({
+        'user_id': userId,
+        'item_id': itemId,
+        'item_type': isMovie ? 'movie' : 'tv',
+        'reason': reason,
+        'details': details,
+      });
+    } catch (e) {
+      debugPrint('Error adding dislike: $e');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getDislikes() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      final data = await supabase
+          .from('dislikes')
+          .select()
+          .eq('user_id', userId);
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      debugPrint('Error fetching dislikes: $e');
+      return [];
     }
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
+import '../widget/toast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widget/nav_bar.dart';
 import '../widget/movie_series_toggle.dart';
@@ -24,6 +26,76 @@ class _ListPageState extends State<ListPage> {
   void initState() {
     super.initState();
     _fetchWatchlist();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstTime());
+  }
+
+  Future<void> _checkFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('seen_list_instructions') ?? false;
+    if (!seen) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Manage List',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check, color: Colors.green),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Swipe Right to Left to Mark Watched',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Swipe Left to Right to Remove',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  prefs.setBool('seen_list_instructions', true);
+                },
+                child: const Text(
+                  'Got it!',
+                  style: TextStyle(
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchWatchlist() async {
@@ -162,8 +234,33 @@ class _ListPageState extends State<ListPage> {
   Widget _buildIdCard(Map<String, dynamic> item) {
     return Dismissible(
       key: Key('watchlist_${item['id']}'),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.horizontal,
+      // Swipe Left to Right (Start to End) -> Remove (Red)
       background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete, color: Colors.white, size: 30),
+            SizedBox(height: 4),
+            Text(
+              'Remove',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+      // Swipe Right to Left (End to Start) -> Mark Watched (Green)
+      secondaryBackground: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
@@ -187,65 +284,66 @@ class _ListPageState extends State<ListPage> {
         ),
       ),
       confirmDismiss: (direction) async {
-        if (item['is_movie'] == true) {
-          // Movie: Mark watched and remove from watchlist
-          await SupabaseService.addToWatched(
-            item['details'] ?? item['raw_item'],
-            true,
-          );
+        if (direction == DismissDirection.startToEnd) {
+          // Remove from watchlist
           await SupabaseService.removeFromWatchlist(item['id']);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Marked ${item['title']} as watched'),
-              backgroundColor: Colors.green,
-            ),
+          Toast.show(
+            context,
+            'Removed ${item['title']} from watchlist',
+            isError: true,
           );
-          return true; // Remove from list
+          return true;
         } else {
-          // Series: Mark next episode as watched
-          final nextSeason = item['next_season'];
-          final nextEpisode = item['next_episode'];
-
-          if (nextSeason != null && nextEpisode != null) {
-            await SupabaseService.updateWatchedProgress(
-              item['id'],
-              nextSeason,
-              nextEpisode,
+          // Mark as watched
+          if (item['is_movie'] == true) {
+            await SupabaseService.addToWatched(
+              item['details'] ?? item['raw_item'],
+              true,
             );
+            await SupabaseService.removeFromWatchlist(item['id']);
 
-            // Refresh list to update "Next Episode"
-            _fetchWatchlist();
+            Toast.show(context, 'Marked ${item['title']} as watched');
+            return true;
+          } else {
+            final nextSeason = item['next_season'];
+            final nextEpisode = item['next_episode'];
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Marked S${nextSeason} E${nextEpisode} as watched',
-                ),
-                backgroundColor: Colors.green,
-              ),
-            );
+            if (nextSeason != null && nextEpisode != null) {
+              await SupabaseService.updateWatchedProgress(
+                item['id'],
+                nextSeason,
+                nextEpisode,
+              );
+
+              _fetchWatchlist();
+
+              Toast.show(
+                context,
+                'Marked S${nextSeason} E${nextEpisode} as watched',
+              );
+            }
+            return false;
           }
-          return false; // Don't remove from list
         }
       },
       child: GestureDetector(
-        onTap: () {
+        onTap: () async {
           if (item['is_movie'] == true) {
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => MoviePage(movieId: item['id']),
               ),
             );
           } else {
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => SeriesPage(tvId: item['id']),
               ),
             );
           }
+          _fetchWatchlist();
         },
         child: Container(
           margin: const EdgeInsets.only(bottom: 16),

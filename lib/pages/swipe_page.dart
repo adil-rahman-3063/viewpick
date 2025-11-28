@@ -10,6 +10,8 @@ import 'home_page.dart';
 import 'explore.dart';
 import 'list_page.dart';
 import 'profile.dart';
+import '../widget/toast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SwipePage extends StatefulWidget {
   const SwipePage({Key? key}) : super(key: key);
@@ -27,11 +29,89 @@ class _SwipePageState extends State<SwipePage> {
   List<Map<String, dynamic>> _movies = [];
   bool _isLoading = true;
   bool _isMovieMode = true; // true for movies, false for series
+  int _languageCycleIndex = 0; // To track rotation of preferred languages
 
   @override
   void initState() {
     super.initState();
     _initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstTime());
+  }
+
+  Future<void> _checkFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('seen_swipe_instructions') ?? false;
+    if (!seen) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'How to Swipe',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.swipe_right, color: Colors.green),
+                    SizedBox(width: 10),
+                    Text(
+                      'Swipe Right to Like',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.swipe_left, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text(
+                      'Swipe Left to Dislike',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.swipe_up, color: Colors.blue),
+                    SizedBox(width: 10),
+                    Text(
+                      'Swipe Up to Skip',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  prefs.setBool('seen_swipe_instructions', true);
+                },
+                child: const Text(
+                  'Got it!',
+                  style: TextStyle(
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _initialize() async {
@@ -88,160 +168,213 @@ class _SwipePageState extends State<SwipePage> {
 
   Future<List<Map<String, dynamic>>> _fetchContentBatch() async {
     try {
-      // Use appropriate genre map based on mode
       final activeGenreMap = _isMovieMode ? _genreMap : _tvGenreMap;
 
-      final Set<Map<String, dynamic>> personalizedContent = {};
+      // 1. Parallel Supabase Calls
+      final results = await Future.wait([
+        SupabaseService.getDislikes(),
+        _isMovieMode
+            ? SupabaseService.getLikedMovieGenres()
+            : SupabaseService.getLikedTVGenres(),
+      ]);
 
-      // Get user's preferred languages
+      final dislikes = results[0] as List<Map<String, dynamic>>;
+      final likedGenres = results[1] as List<String>;
+      final hasLikedContent = likedGenres.isNotEmpty;
       final userLanguages = SupabaseService.getUserLanguages();
 
-      // Get 3 personalized cards from user's preferred languages and genres
-      // Check if user has liked content
-      final hasLikedContent = await SupabaseService.hasLikedContent(
-        _isMovieMode,
-      );
+      bool isDisliked(Map<String, dynamic> item) {
+        final itemYear =
+            int.tryParse(
+              (item['release_date'] ?? item['first_air_date'] ?? '')
+                  .toString()
+                  .substring(0, 4),
+            ) ??
+            0;
+        final itemGenres = (item['genre_ids'] as List<dynamic>? ?? [])
+            .map((id) => activeGenreMap[id])
+            .where((name) => name != null)
+            .toList();
 
-      if (userLanguages.isNotEmpty) {
-        try {
-          // Pick a random language from user preferences
-          final randomLanguage =
-              userLanguages[Random().nextInt(userLanguages.length)];
-          final randomLanguageCode = randomLanguage.split('-')[0];
+        for (final dislike in dislikes) {
+          final reason = dislike['reason'];
+          final details = dislike['details'];
 
-          // Check if user has liked content to refine by genre
+          if (reason == 'genre') {
+            if (itemGenres.contains(details['genre'])) return true;
+          } else if (reason == 'year_exact') {
+            if (itemYear == details['year']) return true;
+          } else if (reason == 'year_before') {
+            if (itemYear < details['year']) return true;
+          } else if (reason == 'language') {
+            if (item['original_language'] == details['language_code'])
+              return true;
+          }
+        }
+        return false;
+      }
+
+      final Set<Map<String, dynamic>> personalizedContent = {};
+      final Set<Map<String, dynamic>> randomContent = {};
+
+      // 2. Prepare Personalized Content Fetch
+      Future<void> fetchPersonalized() async {
+        if (userLanguages.isEmpty) return;
+
+        final dislikedLanguages = dislikes
+            .where((d) => d['reason'] == 'language')
+            .map((d) => d['details']['language_code'])
+            .toSet();
+
+        final availableLanguages = userLanguages.where((lang) {
+          return !dislikedLanguages.any((dl) => lang.contains(dl));
+        }).toList();
+
+        if (availableLanguages.isEmpty) return;
+
+        // Prepare futures for 3 cards
+        final futures = List.generate(3, (i) async {
+          final langIndex =
+              (_languageCycleIndex + i) % availableLanguages.length;
+          final targetLanguage = availableLanguages[langIndex];
+          final targetLanguageCode = targetLanguage.split('-')[0];
+
+          // Try Genre-based first
           if (hasLikedContent) {
-            // User has liked content - get their genre preferences
-            final likedGenres = _isMovieMode
-                ? await SupabaseService.getLikedMovieGenres()
-                : await SupabaseService.getLikedTVGenres();
-            final likedGenreIds = activeGenreMap.entries
-                .where((entry) => likedGenres.contains(entry.value))
+            final dislikedGenreNames = dislikes
+                .where((d) => d['reason'] == 'genre')
+                .map((d) => d['details']['genre'])
+                .toSet();
+
+            final validGenreIds = activeGenreMap.entries
+                .where(
+                  (entry) =>
+                      likedGenres.contains(entry.value) &&
+                      !dislikedGenreNames.contains(entry.value),
+                )
                 .map((entry) => entry.key)
                 .toList();
 
-            if (likedGenreIds.isNotEmpty) {
-              // Get personalized content using random genre from user preferences
+            if (validGenreIds.isNotEmpty) {
               final randomGenreId =
-                  likedGenreIds[Random().nextInt(likedGenreIds.length)];
-              final randomPage =
-                  Random().nextInt(20) + 1; // Random page between 1 and 20
+                  validGenreIds[Random().nextInt(validGenreIds.length)];
+              // Use a wider range of pages to avoid collisions if fetching same genre multiple times
+              final randomPage = Random().nextInt(10) + 1;
 
-              final content = _isMovieMode
-                  ? await _tmdbService.getMoviesByGenre(
-                      randomGenreId,
-                      language: randomLanguage,
-                      page: randomPage,
-                    )
-                  : await _tmdbService.getTVByGenre(
-                      randomGenreId,
-                      language: randomLanguage,
-                      page: randomPage,
-                    );
-              content.shuffle();
-              personalizedContent.addAll(
-                content.take(3).map((item) => _formatData(item)),
-              );
+              try {
+                final content = _isMovieMode
+                    ? await _tmdbService.getMoviesByGenre(
+                        randomGenreId,
+                        language: targetLanguage,
+                        withOriginalLanguage: targetLanguageCode,
+                        page: randomPage,
+                      )
+                    : await _tmdbService.getTVByGenre(
+                        randomGenreId,
+                        language: targetLanguage,
+                        withOriginalLanguage: targetLanguageCode,
+                        page: randomPage,
+                      );
+
+                content.shuffle();
+                final validItems = content
+                    .where((item) => !isDisliked(item))
+                    .toList();
+                if (validItems.isNotEmpty) {
+                  return _formatData(validItems.first);
+                }
+              } catch (e) {
+                // ignore
+              }
             }
           }
 
-          // If we didn't get enough personalized content (or user has no liked genres),
-          // fetch popular/discover content in their preferred language
-          if (personalizedContent.length < 3) {
-            final randomPage = Random().nextInt(10) + 1;
+          // Fallback to Language-based
+          final randomPage = Random().nextInt(15) + 1;
+          try {
             final content = _isMovieMode
                 ? await _tmdbService.getMoviesByOriginalLanguage(
-                    randomLanguageCode,
+                    targetLanguageCode,
                     page: randomPage,
                   )
-                : await _tmdbService
-                      .getTVByOriginalLanguage(
-                        randomLanguageCode,
-                        page: randomPage,
-                      )
-                      .catchError((e) async {
-                        print('Error fetching TV by language: $e');
-                        return <Map<String, dynamic>>[];
-                      });
+                : await _tmdbService.getTVByOriginalLanguage(
+                    targetLanguageCode,
+                    page: randomPage,
+                  );
 
             content.shuffle();
-            final needed = 3 - personalizedContent.length;
-            personalizedContent.addAll(
-              content.take(needed).map((item) => _formatData(item)),
-            );
+            final validItems = content
+                .where((item) => !isDisliked(item))
+                .toList();
+            if (validItems.isNotEmpty) {
+              return _formatData(validItems.first);
+            }
+          } catch (e) {
+            // ignore
           }
-        } catch (e) {
-          print('Error fetching personalized content: $e');
-          // Continue to fetch random content
+          return null;
+        });
+
+        // Update cycle index
+        _languageCycleIndex += 3;
+
+        final items = await Future.wait(futures);
+        for (var item in items) {
+          if (item != null) personalizedContent.add(item);
         }
       }
 
-      // Get 3 random cards (any genre, any language)
-      final randomPage =
-          Random().nextInt(50) +
-          1; // Random page between 1 and 50 for popular content
+      // 3. Prepare Random Content Fetch
+      Future<void> fetchRandom() async {
+        try {
+          final randomPage = Random().nextInt(50) + 1;
+          final supportedLanguages = SupabaseService.supportedLanguageCodes;
+          final randomLangString =
+              supportedLanguages[Random().nextInt(supportedLanguages.length)];
+          final randomLangCode = randomLangString.split('-')[0];
 
-      // Pick a random language from supported languages
-      final supportedLanguages = SupabaseService.supportedLanguageCodes;
-      final randomLanguageCode =
-          supportedLanguages[Random().nextInt(supportedLanguages.length)].split(
-            '-',
-          )[0];
-
-      final randomContent = _isMovieMode
-          ? await _tmdbService
-                .getMoviesByOriginalLanguage(
-                  randomLanguageCode,
+          final content = _isMovieMode
+              ? await _tmdbService.getMoviesByOriginalLanguage(
+                  randomLangCode,
                   page: randomPage,
                 )
-                .then(
-                  (res) => res
-                      .where(
-                        (item) =>
-                            item['overview'] != null &&
-                            item['overview'].isNotEmpty,
-                      )
-                      .toList(),
-                )
-          : await _tmdbService
-                .getTVByOriginalLanguage(randomLanguageCode, page: randomPage)
-                .then(
-                  (res) => res
-                      .where(
-                        (item) =>
-                            item['overview'] != null &&
-                            item['overview'].isNotEmpty,
-                      )
-                      .toList(),
-                )
-                .catchError((e) async {
-                  print('Error fetching TV by language: $e');
-                  return await _tmdbService.getPopularTV(page: randomPage);
-                });
-      randomContent.shuffle();
+              : await _tmdbService.getTVByOriginalLanguage(
+                  randomLangCode,
+                  page: randomPage,
+                );
 
-      // Get 3 random content, avoiding duplicates
-      final totalNeeded = 6 - personalizedContent.length;
-      final remainingContent = randomContent
-          .where(
-            (item) => !personalizedContent.any(
-              (pContent) => pContent['id'] == item['id'],
-            ),
-          )
-          .take(totalNeeded)
-          .map((item) => _formatData(item));
+          content.shuffle();
+          final filteredRandom = content.where((item) => !isDisliked(item));
 
-      final allContent = {...personalizedContent, ...remainingContent}.toList();
-      allContent.shuffle();
+          for (var item in filteredRandom) {
+            if (randomContent.length >= 3) break;
+            randomContent.add(_formatData(item));
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
 
-      // Final fallback: If we still have no content, fetch popular items
+      // 4. Execute in Parallel
+      await Future.wait([fetchPersonalized(), fetchRandom()]);
+
+      // 5. Combine and Deduplicate
+      final allContent = [...personalizedContent];
+      for (var item in randomContent) {
+        if (!allContent.any((p) => p['id'] == item['id'])) {
+          allContent.add(item);
+        }
+      }
+
+      // Fallback
       if (allContent.isEmpty) {
-        print('Batch empty, fetching popular fallback...');
-        final fallbackContent = _isMovieMode
+        debugPrint('Batch empty, fetching popular fallback...');
+        final fallback = _isMovieMode
             ? await _tmdbService.getPopularMovies(page: 1)
             : await _tmdbService.getPopularTV(page: 1);
 
-        return fallbackContent
+        return fallback
+            .where((item) => !isDisliked(item))
             .take(6)
             .map((item) => _formatData(item))
             .toList();
@@ -249,7 +382,7 @@ class _SwipePageState extends State<SwipePage> {
 
       return allContent;
     } catch (e) {
-      print('Error in _fetchContentBatch: $e');
+      debugPrint('Error in _fetchContentBatch: $e');
       return [];
     }
   }
@@ -264,9 +397,20 @@ class _SwipePageState extends State<SwipePage> {
       final newContent = await _fetchContentBatch();
       if (newContent.isNotEmpty && mounted) {
         setState(() {
-          _movies.addAll(newContent);
+          // Filter out duplicates
+          final uniqueContent = newContent.where((newItem) {
+            return !_movies.any(
+              (existingItem) => existingItem['id'] == newItem['id'],
+            );
+          }).toList();
+
+          if (uniqueContent.isNotEmpty) {
+            _movies.addAll(uniqueContent);
+            print(
+              'Added ${uniqueContent.length} new items. Total: ${_movies.length}',
+            );
+          }
         });
-        print('Added ${newContent.length} new items. Total: ${_movies.length}');
       }
     } catch (e) {
       print('Error loading more content: $e');
@@ -295,6 +439,7 @@ class _SwipePageState extends State<SwipePage> {
       'year': year,
       'genre': genres,
       'description': item['overview'],
+      'original_language': item['original_language'],
     };
   }
 
@@ -386,7 +531,10 @@ class _SwipePageState extends State<SwipePage> {
                               verticalThresholdPercentage,
                             ) {
                               final movie = _movies[index];
-                              return _buildMovieCard(movie);
+                              return _buildMovieCard(
+                                movie,
+                                horizontalThresholdPercentage,
+                              );
                             },
                       ),
                     ),
@@ -481,7 +629,28 @@ class _SwipePageState extends State<SwipePage> {
     );
   }
 
-  Widget _buildMovieCard(Map<String, dynamic> movie) {
+  Widget _buildMovieCard(
+    Map<String, dynamic> movie, [
+    int horizontalThresholdPercentage = 0,
+  ]) {
+    Color? overlayColor;
+    double opacity = 0.0;
+
+    if (horizontalThresholdPercentage != 0) {
+      if (horizontalThresholdPercentage > 0) {
+        // Swiping Right - Green (Like)
+        overlayColor = Colors.green;
+      } else {
+        // Swiping Left - Red (Dislike)
+        overlayColor = Colors.red;
+      }
+
+      // Calculate opacity based on swipe distance
+      // Assuming threshold percentage goes up to 100 or more
+      // We want visible hue starting early but maxing out around 0.5 opacity
+      opacity = (horizontalThresholdPercentage.abs() / 100.0).clamp(0.0, 0.5);
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
@@ -492,70 +661,85 @@ class _SwipePageState extends State<SwipePage> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      movie['image'] ?? '',
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
-                            child: Icon(
-                              Icons.movie,
-                              color: Colors.white,
-                              size: 50,
-                            ),
-                          ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  movie['name'] ?? 'No Title',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 24,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      movie['year'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.white70,
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          movie['image'] ?? '',
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                                child: Icon(
+                                  Icons.movie,
+                                  color: Colors.white,
+                                  size: 50,
+                                ),
+                              ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        movie['genre'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 16),
+                    Text(
+                      movie['name'] ?? 'No Title',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        color: Colors.white,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          movie['year'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            movie['genre'] ?? '',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.white70,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      movie['description'] ?? 'No Description',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white60,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  movie['description'] ?? 'No Description',
-                  style: const TextStyle(fontSize: 14, color: Colors.white60),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              if (overlayColor != null)
+                Container(
+                  decoration: BoxDecoration(
+                    color: overlayColor.withOpacity(opacity),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -584,15 +768,362 @@ class _SwipePageState extends State<SwipePage> {
           _showActionDialog(movie);
         }
       });
+    } else if (direction == CardSwiperDirection.left) {
+      // Handle 'dislike'
+      final movie = _movies[previousIndex];
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) {
+          _showDislikeReasonDialog(movie);
+        }
+      });
     }
 
-    // Infinite scroll trigger: Load more when reaching the 3rd card (index 2)
-    // or when we are close to the end of the list
-    if (previousIndex >= _movies.length - 2 || previousIndex == 2) {
+    // Infinite scroll trigger: Load more when interacting with the 2nd card of a batch
+    // Batch size is 6. 2nd card indices: 1, 7, 13, etc.
+    if (previousIndex % 6 == 1) {
       _loadMoreContent();
     }
 
     return true;
+  }
+
+  void _showDislikeReasonDialog(Map<String, dynamic> movie) {
+    String currentView = 'main'; // 'main', 'genre', 'language', 'year'
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Widget content;
+            void navigateTo(String view) {
+              setSheetState(() => currentView = view);
+            }
+
+            switch (currentView) {
+              case 'genre':
+                content = _buildGenreView(movie, navigateTo);
+                break;
+              case 'language':
+                content = _buildLanguageView(movie, navigateTo);
+                break;
+              case 'year':
+                content = _buildYearView(movie, navigateTo);
+                break;
+              default:
+                content = _buildMainDislikeView(movie, navigateTo);
+            }
+
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.all(24.0),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.8),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  border: Border(
+                    top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    content,
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDislikeOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white70),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white30,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainDislikeView(
+    Map<String, dynamic> movie,
+    Function(String) onNavigate,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Why did you dislike this?',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 30),
+        _buildDislikeOption(
+          icon: Icons.category,
+          label: 'Genre',
+          onTap: () => onNavigate('genre'),
+        ),
+        const SizedBox(height: 16),
+        _buildDislikeOption(
+          icon: Icons.language,
+          label: 'Language',
+          onTap: () => onNavigate('language'),
+        ),
+        const SizedBox(height: 16),
+        _buildDislikeOption(
+          icon: Icons.calendar_today,
+          label: 'Year',
+          onTap: () => onNavigate('year'),
+        ),
+        const SizedBox(height: 16),
+        _buildDislikeOption(
+          icon: Icons.close,
+          label: 'None',
+          onTap: () {
+            SupabaseService.addDislike(
+              itemId: movie['id'],
+              isMovie: _isMovieMode,
+              reason: 'none',
+            );
+            Navigator.pop(context);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenreView(
+    Map<String, dynamic> movie,
+    Function(String) onNavigate,
+  ) {
+    final genres = (movie['genre'] as String).split(', ');
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => onNavigate('main'),
+            ),
+            const Expanded(
+              child: Text(
+                'Which genre?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 48), // Balance back button
+          ],
+        ),
+        const SizedBox(height: 20),
+        ...genres.map(
+          (genre) => ListTile(
+            title: Text(genre, style: const TextStyle(color: Colors.white70)),
+            onTap: () {
+              SupabaseService.addDislike(
+                itemId: movie['id'],
+                isMovie: _isMovieMode,
+                reason: 'genre',
+                details: {'genre': genre},
+              );
+              Navigator.pop(context);
+              Toast.show(context, 'We\'ll show less $genre');
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLanguageView(
+    Map<String, dynamic> movie,
+    Function(String) onNavigate,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => onNavigate('main'),
+            ),
+            const Expanded(
+              child: Text(
+                'Language Preference',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Show less content in this language?',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 30),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'No',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.1),
+              ),
+              onPressed: () {
+                SupabaseService.addDislike(
+                  itemId: movie['id'],
+                  isMovie: _isMovieMode,
+                  reason: 'language',
+                  details: {
+                    'language_code': movie['original_language'] ?? 'en',
+                  },
+                );
+                Navigator.pop(context);
+                Toast.show(context, 'We\'ll show less from this language');
+              },
+              child: const Text(
+                'Yes',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYearView(
+    Map<String, dynamic> movie,
+    Function(String) onNavigate,
+  ) {
+    final year = int.tryParse(movie['year'] ?? '') ?? 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => onNavigate('main'),
+            ),
+            const Expanded(
+              child: Text(
+                'Year Preference',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+        const SizedBox(height: 20),
+        ListTile(
+          title: Text(
+            'Less from $year',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          onTap: () {
+            SupabaseService.addDislike(
+              itemId: movie['id'],
+              isMovie: _isMovieMode,
+              reason: 'year_exact',
+              details: {'year': year},
+            );
+            Navigator.pop(context);
+            Toast.show(context, 'We\'ll show less from $year');
+          },
+        ),
+        ListTile(
+          title: Text(
+            'Less before $year',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          onTap: () {
+            SupabaseService.addDislike(
+              itemId: movie['id'],
+              isMovie: _isMovieMode,
+              reason: 'year_before',
+              details: {'year': year},
+            );
+            Navigator.pop(context);
+            Toast.show(context, 'We\'ll show less before $year');
+          },
+        ),
+      ],
+    );
   }
 
   void _showActionDialog(Map<String, dynamic> movie) {
@@ -657,15 +1188,12 @@ class _SwipePageState extends State<SwipePage> {
                               _isMovieMode,
                             );
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Added ${movie['name']} to Watchlist',
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
+                              if (mounted) {
+                                Toast.show(
+                                  context,
+                                  'Added ${movie['name']} to Watchlist',
+                                );
+                              }
                             }
                           } else {
                             // Series: "Watchlist" button now triggers "Watched Till"
@@ -684,15 +1212,12 @@ class _SwipePageState extends State<SwipePage> {
                           if (_isMovieMode) {
                             await SupabaseService.addToWatched(movie, true);
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Marked ${movie['name']} as Watched',
-                                  ),
-                                  backgroundColor: Colors.blue,
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
+                              if (mounted) {
+                                Toast.show(
+                                  context,
+                                  'Marked ${movie['name']} as Watched',
+                                );
+                              }
                             }
                           } else {
                             // Series: "Watched" button now marks ALL as watched
@@ -752,24 +1277,16 @@ class _SwipePageState extends State<SwipePage> {
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Marked ${show['name']} as fully watched'),
-              backgroundColor: Colors.blue,
-            ),
-          );
+          if (mounted) {
+            Toast.show(context, 'Marked ${show['name']} as fully watched');
+          }
         }
       }
     } catch (e) {
       print('Error marking all as watched: $e');
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to mark as watched'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        Toast.show(context, 'Failed to mark as watched', isError: true);
       }
     }
   }
@@ -947,13 +1464,10 @@ class _SwipePageState extends State<SwipePage> {
       if (mounted) {
         // Pop the loading dialog
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Failed to load seasons. Please check your connection.',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        Toast.show(
+          context,
+          'Failed to load seasons. Please check your connection.',
+          isError: true,
         );
       }
     }
@@ -1006,12 +1520,7 @@ class _SwipePageState extends State<SwipePage> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Marked as watched'),
-          backgroundColor: Colors.blue,
-        ),
-      );
+      Toast.show(context, 'Marked as watched');
     }
   }
 
@@ -1024,9 +1533,11 @@ class _SwipePageState extends State<SwipePage> {
         } else {
           await SupabaseService.addLikedTVGenres(genre);
         }
-        print('Saved liked ${_isMovieMode ? "movie" : "TV"} genres: $genre');
+        debugPrint(
+          'Saved liked ${_isMovieMode ? "movie" : "TV"} genres: $genre',
+        );
       } catch (e) {
-        print('Error saving liked content: $e');
+        debugPrint('Error saving liked content: $e');
       }
     }
   }

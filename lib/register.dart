@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:ui';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widget/toast.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -21,11 +22,25 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _languageController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  
+
   final List<String> _languages = [
-    'English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Kannada',
-    'Mandarin', 'Japanese', 'Korean', 'French', 'Spanish', 'Portuguese',
-    'Italian', 'German', 'Russian', 'Persian', 'Turkish'
+    'English',
+    'Hindi',
+    'Tamil',
+    'Telugu',
+    'Malayalam',
+    'Kannada',
+    'Mandarin',
+    'Japanese',
+    'Korean',
+    'French',
+    'Spanish',
+    'Portuguese',
+    'Italian',
+    'German',
+    'Russian',
+    'Persian',
+    'Turkish',
   ];
   List<String> _selectedLanguages = [];
 
@@ -55,7 +70,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
@@ -77,7 +94,9 @@ class _RegisterPageState extends State<RegisterPage> {
                               runSpacing: 8,
                               alignment: WrapAlignment.center,
                               children: _languages.map((language) {
-                                final isSelected = _selectedLanguages.contains(language);
+                                final isSelected = _selectedLanguages.contains(
+                                  language,
+                                );
                                 return GestureDetector(
                                   onTap: () {
                                     setState(() {
@@ -86,21 +105,37 @@ class _RegisterPageState extends State<RegisterPage> {
                                       } else {
                                         _selectedLanguages.add(language);
                                       }
-                                      _languageController.text = _selectedLanguages.join(', ');
+                                      _languageController.text =
+                                          _selectedLanguages.join(', ');
                                     });
                                   },
                                   child: Container(
-                                    width: MediaQuery.of(context).size.width * 0.35,
-                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                    width:
+                                        MediaQuery.of(context).size.width *
+                                        0.35,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                      horizontal: 16,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? Theme.of(context).colorScheme.primary.withOpacity(0.8)
-                                          : Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                                          ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                                .withOpacity(0.8)
+                                          : Theme.of(context)
+                                                .colorScheme
+                                                .secondary
+                                                .withOpacity(0.3),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
                                         color: isSelected
-                                            ? Theme.of(context).colorScheme.primary
-                                            : Theme.of(context).colorScheme.secondary,
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.secondary,
                                         width: 1,
                                       ),
                                     ),
@@ -109,9 +144,15 @@ class _RegisterPageState extends State<RegisterPage> {
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: isSelected
-                                            ? Theme.of(context).colorScheme.onPrimary
-                                            : Theme.of(context).colorScheme.onSecondary,
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSecondary,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   ),
@@ -154,22 +195,18 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       // For emulator testing, use the Supabase hosted URL
       final redirectUrl = Platform.isAndroid && !kReleaseMode
-          ? 'https://viewpick.app/auth'  // Use your Supabase project URL
+          ? 'https://viewpick.app/auth' // Use your Supabase project URL
           : 'viewpick://auth';
-          
+
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
         emailRedirectTo: redirectUrl,
-        data: {
-          'name': name,
-          'age': age,
-          'languages': _selectedLanguages,
-        },
+        data: {'name': name, 'age': age, 'languages': _selectedLanguages},
       );
 
       if (!mounted) return;
-      
+
       // Show confirmation dialog
       showDialog(
         context: context,
@@ -177,7 +214,9 @@ class _RegisterPageState extends State<RegisterPage> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Registration Successful'),
-            content: Text('Please check ${email} to confirm your email address.'),
+            content: Text(
+              'Please check ${email} to confirm your email address.',
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -192,7 +231,7 @@ class _RegisterPageState extends State<RegisterPage> {
       );
     } catch (err) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration error: $err')));
+      Toast.show(context, 'Registration error: $err', isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -225,18 +264,27 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 24),
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Name', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
                     textInputAction: TextInputAction.next,
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Enter your name'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _ageController,
-                    decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Age',
+                      border: OutlineInputBorder(),
+                    ),
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.next,
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Enter your age';
+                      if (v == null || v.trim().isEmpty)
+                        return 'Enter your age';
                       final n = int.tryParse(v);
                       if (n == null || n <= 0) return 'Enter a valid age';
                       return null;
@@ -259,12 +307,17 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                    ),
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Enter your email';
-                      if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v)) return 'Enter a valid email';
+                      if (v == null || v.trim().isEmpty)
+                        return 'Enter your email';
+                      if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v))
+                        return 'Enter a valid email';
                       return null;
                     },
                   ),
@@ -276,7 +329,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -289,7 +344,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     textInputAction: TextInputAction.next,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Enter a password';
-                      if (v.length < 6) return 'Password should be at least 6 characters';
+                      if (v.length < 6)
+                        return 'Password should be at least 6 characters';
                       return null;
                     },
                   ),
@@ -301,7 +357,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -313,8 +371,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     obscureText: _obscureConfirmPassword,
                     textInputAction: TextInputAction.done,
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Confirm your password';
-                      if (v != _passwordController.text) return 'Passwords do not match';
+                      if (v == null || v.isEmpty)
+                        return 'Confirm your password';
+                      if (v != _passwordController.text)
+                        return 'Passwords do not match';
                       return null;
                     },
                     onFieldSubmitted: (_) => _submit(),
@@ -322,9 +382,15 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                     child: _loading
-                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text('Register'),
                   ),
                   const SizedBox(height: 12),

@@ -7,6 +7,7 @@ import 'theme/app_theme.dart';
 import 'login.dart';
 import 'register.dart';
 import 'pages/home_page.dart';
+import 'pages/settings.dart';
 
 void handleAuthCallback(Uri uri) async {
   // Get the session from the URL
@@ -25,7 +26,7 @@ Future<void> main(List<String> args) async {
 
   // Initialize deep link handling
   final appLinks = AppLinks();
-  
+
   // Handle incoming links - both cold and warm starts
   appLinks.allUriLinkStream.listen((uri) {
     print('Got link: $uri');
@@ -47,34 +48,33 @@ Future<void> main(List<String> args) async {
 
   // Load local .env file (copy from .env.example and set your keys)
   await dotenv.load(fileName: 'assets/credentials.env').catchError((err) {
-		// If loading fails, we'll continue but warn in console.
-		// You can still run the app and fill in env vars later.
-		// ignore: avoid_print
-		print('Could not load .env file: $err');
-	});
+    // If loading fails, we'll continue but warn in console.
+    // You can still run the app and fill in env vars later.
+    // ignore: avoid_print
+    print('Could not load .env file: $err');
+  });
 
-	final supabaseUrl = dotenv.env['SUPABASE_URL'];
-	final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
-	if (supabaseUrl != null && supabaseAnonKey != null) {
-		await Supabase.initialize(
-			url: supabaseUrl,
-			anonKey: supabaseAnonKey,
-		);
-		// ignore: avoid_print
-		print('Supabase initialized');
-	} else {
-		// ignore: avoid_print
-		print('Supabase not initialized: missing SUPABASE_URL or SUPABASE_ANON_KEY in .env');
-	}
+  if (supabaseUrl != null && supabaseAnonKey != null) {
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+    // ignore: avoid_print
+    print('Supabase initialized');
+  } else {
+    // ignore: avoid_print
+    print(
+      'Supabase not initialized: missing SUPABASE_URL or SUPABASE_ANON_KEY in .env',
+    );
+  }
 
-	runApp(MyApp(initialLink: initialLinkFromArgs));
+  runApp(MyApp(initialLink: initialLinkFromArgs));
 }
 
 class MyApp extends StatelessWidget {
   final String? initialLink;
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-  
+
   MyApp({super.key, this.initialLink});
 
   @override
@@ -87,13 +87,15 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       // Default to dark mode
       themeMode: ThemeMode.dark,
-      
+
       // Start at the login page and provide a named route for home.
       initialRoute: '/',
       routes: {
         '/': (context) => LoginPage(initialLink: initialLink),
-  '/home': (context) => HomePage(),
+        '/login': (context) => LoginPage(initialLink: initialLink),
+        '/home': (context) => HomePage(),
         '/register': (context) => const RegisterPage(),
+        '/settings': (context) => const SettingsPage(),
       },
     );
   }

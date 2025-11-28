@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/tmdb_service.dart';
 import '../widget/frosted_card.dart';
 import '../widget/nav_bar.dart';
@@ -18,6 +19,11 @@ class _ExplorePageState extends State<ExplorePage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _items = [];
 
+  // Search state
+  bool _isSearching = false;
+  List<Map<String, dynamic>> _searchResults = [];
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +33,7 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -72,7 +79,7 @@ class _ExplorePageState extends State<ExplorePage> {
     final name = item['title'] ?? item['name'] ?? 'No Title';
     final releaseDate = item['release_date'] ?? item['first_air_date'] ?? '';
     final year = releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '';
-    final type = item['title'] != null ? 'movie' : 'tv'; // Simple inference
+    final type = item['media_type'] ?? (item['title'] != null ? 'movie' : 'tv');
 
     return {
       'id': item['id'],
@@ -80,7 +87,147 @@ class _ExplorePageState extends State<ExplorePage> {
       'year': year,
       'image': 'https://image.tmdb.org/t/p/w500${item['poster_path']}',
       'type': type,
+      'description': item['overview'] ?? 'No description',
     };
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (query.isEmpty) {
+        setState(() {
+          _isSearching = false;
+          _searchResults = [];
+        });
+        return;
+      }
+      _performSearch(query);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    setState(() => _isLoading = true);
+    try {
+      final results = await _tmdbService.searchMulti(query);
+      final formatted = results
+          .where(
+            (item) =>
+                item['media_type'] == 'movie' || item['media_type'] == 'tv',
+          )
+          .map((item) => _formatItem(item))
+          .toList();
+
+      setState(() {
+        _searchResults = formatted;
+        _isSearching = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error searching: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildSearchResultCard(Map<String, dynamic> item) {
+    return GestureDetector(
+      onTap: () {
+        if (item['type'] == 'movie') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MoviePage(movieId: item['id']),
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SeriesPage(tvId: item['id']),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        height: 140,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+              ),
+              child: Image.network(
+                item['image'],
+                width: 100,
+                height: 140,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 100,
+                  height: 140,
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.error, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Details
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      item['title'],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Year | Type
+                    Text(
+                      '${item['year']} | ${item['type'] == 'movie' ? 'Movie' : 'TV Series'}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Description
+                    Flexible(
+                      child: Text(
+                        item['description'],
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -111,6 +258,7 @@ class _ExplorePageState extends State<ExplorePage> {
             ),
             child: TextField(
               controller: _searchController,
+              onChanged: _onSearchChanged,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Search movies and series...',
@@ -139,6 +287,14 @@ class _ExplorePageState extends State<ExplorePage> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(color: Colors.white),
+                  )
+                : _isSearching
+                ? ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 100.0),
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      return _buildSearchResultCard(_searchResults[index]);
+                    },
                   )
                 : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(

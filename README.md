@@ -1,16 +1,73 @@
-# viewpick
+# ViewPick 🎬
 
-A new Flutter project.
+**ViewPick** is a modern, interactive movie and TV show discovery application built with Flutter. It reimagines how you find your next watch by combining a Tinder-style swipe interface with smart, personalized recommendations.
 
-## Getting Started
+## ✨ Features
 
-This project is a starting point for a Flutter application.
+*   **Swipe to Discover:** Effortlessly browse through movies and TV shows. Swipe **Right** to like (and add to watchlist), **Left** to dislike.
+*   **Smart Recommendations:** The algorithm learns from your likes and dislikes to suggest content tailored to your taste.
+    *   **Strict Language Preferences:** Cycles through your preferred languages to ensure you see content you can understand.
+    *   **Genre-Based Suggestions:** Prioritizes genres you've liked in the past.
+*   **Granular Dislike Options:** When you dislike an item, you can specify *why*:
+    *   **Genre:** "I don't like Horror movies."
+    *   **Language:** "I don't watch French films."
+    *   **Year:** "I don't like movies from 1990" or "I don't like anything released before 2000."
+*   **Comprehensive Details:** View trailers, cast & crew, plot summaries, and find out where to stream (Watch Providers).
+*   **Explore & Search:** Search for specific titles or browse Trending and Popular lists.
+*   **Library Management:** Keep track of what you want to watch (Watchlist) and what you've already seen (Watched History).
+*   **Profile & Stats:** View your watching statistics and manage your preferences.
 
-A few resources to get you started if this is your first Flutter project:
+## 🛠️ Tech Stack
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+*   **Frontend:** [Flutter](https://flutter.dev/) (Dart)
+*   **Backend / Database:** [Supabase](https://supabase.com/) (Authentication, Database, Realtime)
+*   **Data Source:** [TMDB API](https://www.themoviedb.org/) (The Movie Database)
+*   **Proxy Server:** Custom Node.js proxy for secure API communication.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🚀 Getting Started
+
+### Prerequisites
+
+*   [Flutter SDK](https://docs.flutter.dev/get-started/install) installed.
+*   A Supabase project set up.
+*   A TMDB API Key.
+
+### Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/yourusername/viewpick.git
+    cd viewpick
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    flutter pub get
+    ```
+
+3.  **Environment Setup:**
+    Create a `assets/credentials.env` file in the root directory and add your Supabase keys:
+    ```env
+    SUPABASE_URL=your_supabase_url
+    SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
+    *Note: Ensure you have the `assets` folder configured in your `pubspec.yaml`.*
+
+4.  **Run the App:**
+    ```bash
+    flutter run
+    ```
+
+## 📱 Screenshots
+
+| Swipe Interface | Details Page | Explore |
+|:---:|:---:|:---:|
+| *(Add Screenshot)* | *(Add Screenshot)* | *(Add Screenshot)* |
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

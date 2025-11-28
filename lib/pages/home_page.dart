@@ -69,8 +69,7 @@ class _HomePageState extends State<HomePage> {
       bottomNavigationBar: FrostedNavBar(
         selectedIndex: 1, // Home is always index 1
         onItemSelected: (index) {
-          if (index == 1) return; // Already on Home
-          FrostedNavBar.handleNavigation(context, index);
+          // Navigation is handled by FrostedNavBar internally
         },
       ),
     );
@@ -277,18 +276,62 @@ class _HomeTabState extends State<HomeTab> {
   Future<List<Map<String, dynamic>>> _fetchWatchlist() async {
     try {
       final watchlist = await SupabaseService.getWatchlist();
-      return watchlist
-          .map(
-            (item) => {
-              'id': item['item_id'],
-              'title': item['title'],
-              'year': item['release_date']?.substring(0, 4) ?? '',
-              'image': 'https://image.tmdb.org/t/p/w500${item['poster_path']}',
-              'subtitle': item['overview'] ?? 'No description',
-            },
-          )
-          .toList();
+
+      // Filter based on current mode
+      final filteredItems = watchlist.where((item) {
+        final isMovie = item['item_type'] == 'movie';
+        return isMovie == widget.isMovieMode;
+      }).toList();
+
+      // Fetch details in parallel
+      final futures = filteredItems.map((item) async {
+        try {
+          final int id = item['item_id'];
+          final bool isMovie = item['item_type'] == 'movie';
+
+          Map<String, dynamic> details;
+          if (isMovie) {
+            details = await _tmdbService.getMovieDetails(id);
+          } else {
+            details = await _tmdbService.getTVDetails(id);
+          }
+
+          final name = details['title'] ?? details['name'] ?? 'No Title';
+          final releaseDate =
+              details['release_date'] ?? details['first_air_date'] ?? '';
+          final year = releaseDate.isNotEmpty
+              ? releaseDate.substring(0, 4)
+              : '';
+          final overview = details['overview'] ?? 'No description';
+
+          return {
+            'id': id,
+            'title': name,
+            'year': year,
+            'image': 'https://image.tmdb.org/t/p/w500${details['poster_path']}',
+            'subtitle': overview.length > 50
+                ? overview.substring(0, 50) + '...'
+                : overview,
+          };
+        } catch (e) {
+          print(
+            'Error fetching details for watchlist item ${item['item_id']}: $e',
+          );
+          // Fallback to Supabase data
+          return {
+            'id': item['item_id'],
+            'title': item['title'],
+            'year': item['release_date']?.substring(0, 4) ?? '',
+            'image': 'https://image.tmdb.org/t/p/w500${item['poster_path']}',
+            'subtitle': item['overview'] ?? 'No description',
+          };
+        }
+      });
+
+      final results = await Future.wait(futures);
+      return results;
     } catch (e) {
+      print('Error fetching watchlist: $e');
       return [];
     }
   }
@@ -348,22 +391,23 @@ class _HomeTabState extends State<HomeTab> {
             itemBuilder: (context, index) {
               final item = items[index];
               return GestureDetector(
-                onTap: () {
+                onTap: () async {
                   if (widget.isMovieMode) {
-                    Navigator.push(
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => MoviePage(movieId: item['id']),
                       ),
                     );
                   } else {
-                    Navigator.push(
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => SeriesPage(tvId: item['id']),
                       ),
                     );
                   }
+                  _fetchAllSections();
                 },
                 child: FrostedCard(
                   imageUrl: item['image'] ?? '',

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
+import '../widget/toast.dart';
 
 class SeriesPage extends StatefulWidget {
   final int tvId;
@@ -19,6 +20,7 @@ class _SeriesPageState extends State<SeriesPage> {
   Map<String, dynamic>? _tvDetails;
   Map<String, dynamic>? _providers;
   List<dynamic>? _cast;
+  List<dynamic>? _crew;
   bool _isInWatchlist = false;
   bool _isLiked = false;
 
@@ -104,6 +106,7 @@ class _SeriesPageState extends State<SeriesPage> {
           _tvDetails = details;
           _providers = providers;
           _cast = credits?['cast'];
+          _crew = credits?['crew'];
           _isInWatchlist = inWatchlist;
           _watchedSeason = wSeason;
           _watchedEpisode = wEpisode;
@@ -145,28 +148,16 @@ class _SeriesPageState extends State<SeriesPage> {
 
         setState(() => _isInWatchlist = false);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Marked series as watched'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        Toast.show(context, 'Marked series as watched');
       } else {
         // If not in watchlist, "Add to Watchlist" logic
         await SupabaseService.addToWatchlist(_tvDetails!, false);
         setState(() => _isInWatchlist = true);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Added to Watchlist'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        Toast.show(context, 'Added to Watchlist');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      Toast.show(context, 'Error: $e', isError: true);
     }
   }
 
@@ -181,12 +172,7 @@ class _SeriesPageState extends State<SeriesPage> {
 
     await SupabaseService.addLikedTVGenres(genres);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Added to your interests'),
-        backgroundColor: Colors.pink,
-      ),
-    );
+    Toast.show(context, 'Added to your interests');
   }
 
   Future<void> _updateProgress(int seasonNumber, int episodeNumber) async {
@@ -225,9 +211,7 @@ class _SeriesPageState extends State<SeriesPage> {
         _watchedSeason = oldSeason;
         _watchedEpisode = oldEpisode;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error updating progress: $e')));
+      Toast.show(context, 'Error updating progress: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isUpdatingWatched = false);
     }
@@ -589,6 +573,82 @@ class _SeriesPageState extends State<SeriesPage> {
                                 ),
                                 Text(
                                   actor['character'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (_crew != null && _crew!.isNotEmpty) ...[
+                    const Text(
+                      'Crew',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 160,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _crew!.length,
+                        itemBuilder: (context, index) {
+                          final member = _crew![index];
+                          final profilePath = member['profile_path'];
+                          return Container(
+                            width: 100,
+                            margin: const EdgeInsets.only(right: 12),
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: Colors.grey[800],
+                                    child: profilePath != null
+                                        ? Image.network(
+                                            'https://image.tmdb.org/t/p/w200$profilePath',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
+                                                ),
+                                          )
+                                        : const Icon(
+                                            Icons.person,
+                                            color: Colors.white,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  member['name'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  member['job'] ?? '',
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 10,

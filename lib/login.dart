@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'services/supabase_service.dart';
+import 'widget/toast.dart';
 
 class LoginPage extends StatefulWidget {
   final String? initialLink;
@@ -44,11 +45,14 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     // Listen for incoming links while the app is running
-    _sub = AppLinks().allUriLinkStream.listen((uri) {
-      _handleUri(uri);
-    }, onError: (err) {
-      // ignore stream errors
-    });
+    _sub = AppLinks().allUriLinkStream.listen(
+      (uri) {
+        _handleUri(uri);
+      },
+      onError: (err) {
+        // ignore stream errors
+      },
+    );
   }
 
   void _handleUri(Uri uri) {
@@ -63,14 +67,14 @@ class _LoginPageState extends State<LoginPage> {
 
       if (accessToken != null && accessToken.isNotEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logged in via email link')));
+        Toast.show(context, 'Logged in via email link');
         Navigator.of(context).pushReplacementNamed('/home');
         return;
       }
 
       if (type == 'signup' || type == 'confirm') {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email confirmed — please sign in')));
+        Toast.show(context, 'Email confirmed — please sign in');
         return;
       }
     }
@@ -84,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter email and password')));
+      Toast.show(context, 'Enter email and password', isError: true);
       return;
     }
 
@@ -97,11 +101,11 @@ class _LoginPageState extends State<LoginPage> {
       if (user != null) {
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in failed')));
+        Toast.show(context, 'Sign in failed', isError: true);
       }
     } catch (err) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign in error: $err')));
+      Toast.show(context, 'Sign in error: $err', isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -151,7 +155,9 @@ class _LoginPageState extends State<LoginPage> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -172,13 +178,18 @@ class _LoginPageState extends State<LoginPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: _loading
-                          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Text('Sign in'),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pushNamed('/register'),
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed('/register'),
                     child: const Text('Not a user? Register'),
                   ),
                 ],
