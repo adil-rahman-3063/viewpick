@@ -109,9 +109,13 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
         margin: const EdgeInsets.only(bottom: 16),
         height: 140,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          ),
         ),
         child: Row(
           children: [
@@ -129,8 +133,11 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
                 errorBuilder: (context, error, stackTrace) => Container(
                   width: 100,
                   height: 140,
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.error, color: Colors.white),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Icon(
+                    Icons.error,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ),
             ),
@@ -148,8 +155,8 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
                     // Title
                     Text(
                       item['title'],
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -160,8 +167,8 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
                     // Year | Genre
                     Text(
                       '${item['year']} | ${item['genre']}',
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 14,
                       ),
                     ),
@@ -170,8 +177,10 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
                     Flexible(
                       child: Text(
                         item['description'],
-                        style: const TextStyle(
-                          color: Colors.white60,
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withOpacity(0.8),
                           fontSize: 12,
                         ),
                         maxLines: 2,
@@ -182,8 +191,8 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
                       const SizedBox(height: 4),
                       Text(
                         'Watched: ${item['watched_date']}',
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: 12,
                         ),
                       ),
@@ -202,17 +211,30 @@ class _MoviesWatchedPageState extends State<MoviesWatchedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Movies Watched'),
+        title: Text(
+          'Movies Watched',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? Center(
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            )
           : _watchedMovies.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'No movies watched yet',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 16,
+                ),
               ),
             )
           : ListView.builder(

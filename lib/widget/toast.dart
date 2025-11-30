@@ -1,15 +1,19 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+enum ToastPosition { top, bottomLeft }
+
 class Toast {
   static void show(
     BuildContext context,
     String message, {
     bool isError = false,
+    ToastPosition position = ToastPosition.top,
   }) {
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
-      builder: (context) => _ToastWidget(message: message, isError: isError),
+      builder: (context) =>
+          _ToastWidget(message: message, isError: isError, position: position),
     );
 
     overlay.insert(overlayEntry);
@@ -24,9 +28,14 @@ class Toast {
 class _ToastWidget extends StatefulWidget {
   final String message;
   final bool isError;
+  final ToastPosition position;
 
-  const _ToastWidget({Key? key, required this.message, this.isError = false})
-    : super(key: key);
+  const _ToastWidget({
+    Key? key,
+    required this.message,
+    this.isError = false,
+    this.position = ToastPosition.top,
+  }) : super(key: key);
 
   @override
   State<_ToastWidget> createState() => _ToastWidgetState();
@@ -52,7 +61,9 @@ class _ToastWidgetState extends State<_ToastWidget>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _offset = Tween<Offset>(
-      begin: const Offset(0, -0.5),
+      begin: widget.position == ToastPosition.top
+          ? const Offset(0, -0.5)
+          : const Offset(0, 0.5),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
@@ -75,9 +86,12 @@ class _ToastWidgetState extends State<_ToastWidget>
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 10,
-      left: 16,
-      right: 16,
+      top: widget.position == ToastPosition.top
+          ? MediaQuery.of(context).padding.top + 10
+          : null,
+      bottom: widget.position == ToastPosition.bottomLeft ? 20 : null,
+      left: widget.position == ToastPosition.bottomLeft ? 20 : 16,
+      right: widget.position == ToastPosition.bottomLeft ? null : 16,
       child: Material(
         color: Colors.transparent,
         child: Center(
@@ -96,13 +110,22 @@ class _ToastWidgetState extends State<_ToastWidget>
                     ),
                     decoration: BoxDecoration(
                       color: widget.isError
-                          ? Colors.red.withOpacity(0.2)
-                          : Colors.white.withOpacity(0.1),
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.errorContainer.withOpacity(0.8)
+                          : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withOpacity(0.8),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
                         color: widget.isError
-                            ? Colors.red.withOpacity(0.3)
-                            : Colors.white.withOpacity(0.2),
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.error.withOpacity(0.5)
+                            : Theme.of(
+                                context,
+                              ).colorScheme.outline.withOpacity(0.2),
                       ),
                     ),
                     child: Row(
@@ -113,16 +136,20 @@ class _ToastWidgetState extends State<_ToastWidget>
                               ? Icons.error_outline
                               : Icons.check_circle_outline,
                           color: widget.isError
-                              ? Colors.redAccent
-                              : Colors.white,
+                              ? Theme.of(context).colorScheme.onErrorContainer
+                              : Theme.of(context).colorScheme.onSurface,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         Flexible(
                           child: Text(
                             widget.message,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: widget.isError
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer
+                                  : Theme.of(context).colorScheme.onSurface,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),

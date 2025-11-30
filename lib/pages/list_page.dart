@@ -38,39 +38,43 @@ class _ListPageState extends State<ListPage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            title: const Text(
+            title: Text(
               'Manage List',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             ),
-            content: const Column(
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.check, color: Colors.green),
-                    SizedBox(width: 10),
+                    const Icon(Icons.check, color: Colors.green),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Swipe Right to Left to Mark Watched',
-                        style: TextStyle(color: Colors.white70),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 10),
+                    const Icon(Icons.delete, color: Colors.red),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Swipe Left to Right to Remove',
-                        style: TextStyle(color: Colors.white70),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -240,18 +244,22 @@ class _ListPageState extends State<ListPage> {
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: 20),
         decoration: BoxDecoration(
-          color: Colors.red,
+          color: Theme.of(context).colorScheme.errorContainer,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.delete, color: Colors.white, size: 30),
-            SizedBox(height: 4),
+            Icon(
+              Icons.delete,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+              size: 30,
+            ),
+            const SizedBox(height: 4),
             Text(
               'Remove',
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onErrorContainer,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -264,7 +272,7 @@ class _ListPageState extends State<ListPage> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.green,
+          color: Colors.green.withOpacity(0.8),
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Column(
@@ -349,9 +357,13 @@ class _ListPageState extends State<ListPage> {
           margin: const EdgeInsets.only(bottom: 16),
           height: 140,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            ),
           ),
           child: Row(
             children: [
@@ -369,8 +381,13 @@ class _ListPageState extends State<ListPage> {
                   errorBuilder: (context, error, stackTrace) => Container(
                     width: 100,
                     height: 140,
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.error, color: Colors.white),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.error,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               ),
@@ -388,8 +405,8 @@ class _ListPageState extends State<ListPage> {
                       // Title
                       Text(
                         item['title'],
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -400,8 +417,8 @@ class _ListPageState extends State<ListPage> {
                       // Year | Genre
                       Text(
                         '${item['year']} | ${item['genre']}',
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 14,
                         ),
                       ),
@@ -410,8 +427,10 @@ class _ListPageState extends State<ListPage> {
                       Flexible(
                         child: Text(
                           item['description'],
-                          style: const TextStyle(
-                            color: Colors.white60,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant.withOpacity(0.8),
                             fontSize: 12,
                           ),
                           maxLines: 3,
@@ -424,8 +443,8 @@ class _ListPageState extends State<ListPage> {
                         const SizedBox(height: 8),
                         Text(
                           'Up Next: S${item['next_season']} E${item['next_episode']}',
-                          style: const TextStyle(
-                            color: Colors.amberAccent,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -455,8 +474,10 @@ class _ListPageState extends State<ListPage> {
         children: [
           // Content
           _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+              ? Center(
+                  child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 )
               : filteredList.isEmpty
               ? Center(
@@ -464,7 +485,10 @@ class _ListPageState extends State<ListPage> {
                     _isMovieMode
                         ? 'Your movie watchlist is empty'
                         : 'Your series watchlist is empty',
-                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 16,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -482,7 +506,7 @@ class _ListPageState extends State<ListPage> {
                 ),
 
           // Title
-          const Positioned(
+          Positioned(
             top: 50,
             left: 0,
             right: 0,
@@ -494,7 +518,7 @@ class _ListPageState extends State<ListPage> {
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 4,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),

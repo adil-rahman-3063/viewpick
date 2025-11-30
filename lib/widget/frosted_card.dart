@@ -24,7 +24,9 @@ class FrostedCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(15),
@@ -32,7 +34,9 @@ class FrostedCard extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Column(
@@ -47,23 +51,36 @@ class FrostedCard extends StatelessWidget {
                         imageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.movie, color: Colors.white70, size: 40),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.movie,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            size: 40,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   // Title and info
                   Container(
-                    padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 4.0, top: 2.0),
+                    padding: const EdgeInsets.only(
+                      left: 8.0,
+                      right: 8.0,
+                      bottom: 4.0,
+                      top: 2.0,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -72,8 +89,10 @@ class FrostedCard extends StatelessWidget {
                         ),
                         Text(
                           year,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 10,
                           ),
                         ),
@@ -89,4 +108,3 @@ class FrostedCard extends StatelessWidget {
     );
   }
 }
-

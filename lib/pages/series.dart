@@ -232,8 +232,8 @@ class _SeriesPageState extends State<SeriesPage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
+        body: Center(
+          child: CircularProgressIndicator(color: theme.colorScheme.primary),
         ),
       );
     }
@@ -242,10 +242,10 @@ class _SeriesPageState extends State<SeriesPage> {
       return Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(backgroundColor: Colors.transparent),
-        body: const Center(
+        body: Center(
           child: Text(
             'Failed to load series',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: theme.colorScheme.onSurface),
           ),
         ),
       );
@@ -277,7 +277,7 @@ class _SeriesPageState extends State<SeriesPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios, color: theme.colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -334,8 +334,8 @@ class _SeriesPageState extends State<SeriesPage> {
                 children: [
                   Text(
                     '$title ($year)',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'BitcountGridSingle',
@@ -349,8 +349,8 @@ class _SeriesPageState extends State<SeriesPage> {
                       const SizedBox(width: 4),
                       Text(
                         rating,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -358,8 +358,8 @@ class _SeriesPageState extends State<SeriesPage> {
                       const SizedBox(width: 16),
                       Text(
                         '$numberOfSeasons Seasons',
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontSize: 14,
                         ),
                       ),
@@ -367,8 +367,8 @@ class _SeriesPageState extends State<SeriesPage> {
                       Expanded(
                         child: Text(
                           genres,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
                             fontSize: 14,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -405,10 +405,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  const Text(
+                  Text(
                     'Overview',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -416,8 +416,8 @@ class _SeriesPageState extends State<SeriesPage> {
                   const SizedBox(height: 8),
                   Text(
                     overview ?? 'No description available.',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
                       fontSize: 16,
                       height: 1.5,
                     ),
@@ -425,10 +425,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   const SizedBox(height: 24),
 
                   if (flatrate != null && flatrate.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Stream On',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -455,10 +455,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   ],
 
                   if (rent != null && rent.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Rent',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -485,10 +485,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   ],
 
                   if (buy != null && buy.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Buy',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -515,10 +515,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   ],
 
                   if (_cast != null && _cast!.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Cast',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -542,28 +542,33 @@ class _SeriesPageState extends State<SeriesPage> {
                                   child: Container(
                                     width: 80,
                                     height: 80,
-                                    color: Colors.grey[800],
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     child: profilePath != null
                                         ? Image.network(
                                             'https://image.tmdb.org/t/p/w200$profilePath',
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
-                                                ),
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.person,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
                                           )
-                                        : const Icon(
+                                        : Icon(
                                             Icons.person,
-                                            color: Colors.white,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   actor['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -573,8 +578,8 @@ class _SeriesPageState extends State<SeriesPage> {
                                 ),
                                 Text(
                                   actor['character'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     fontSize: 10,
                                   ),
                                   maxLines: 2,
@@ -591,10 +596,10 @@ class _SeriesPageState extends State<SeriesPage> {
                   ],
 
                   if (_crew != null && _crew!.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Crew',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -618,28 +623,33 @@ class _SeriesPageState extends State<SeriesPage> {
                                   child: Container(
                                     width: 80,
                                     height: 80,
-                                    color: Colors.grey[800],
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     child: profilePath != null
                                         ? Image.network(
                                             'https://image.tmdb.org/t/p/w200$profilePath',
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
-                                                ),
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.person,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
                                           )
-                                        : const Icon(
+                                        : Icon(
                                             Icons.person,
-                                            color: Colors.white,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   member['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -649,8 +659,8 @@ class _SeriesPageState extends State<SeriesPage> {
                                 ),
                                 Text(
                                   member['job'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     fontSize: 10,
                                   ),
                                   maxLines: 2,
@@ -666,10 +676,10 @@ class _SeriesPageState extends State<SeriesPage> {
                     const SizedBox(height: 24),
                   ],
 
-                  const Text(
+                  Text(
                     'Seasons',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -681,26 +691,31 @@ class _SeriesPageState extends State<SeriesPage> {
                     final episodes = _seasonEpisodes[seasonNum];
 
                     return Card(
-                      color: Colors.white.withOpacity(0.05),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withOpacity(0.3),
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        side: BorderSide(
+                          color: theme.colorScheme.outline.withOpacity(0.2),
+                        ),
                       ),
                       child: ExpansionTile(
                         title: Text(
                           season['name'],
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         subtitle: Text(
                           '$episodeCount Episodes',
-                          style: const TextStyle(color: Colors.white60),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                        iconColor: Colors.white,
-                        collapsedIconColor: Colors.white60,
+                        iconColor: theme.colorScheme.onSurface,
+                        collapsedIconColor: theme.colorScheme.onSurfaceVariant,
                         onExpansionChanged: (expanded) {
                           if (expanded) {
                             _fetchSeasonDetails(seasonNum);
@@ -708,11 +723,11 @@ class _SeriesPageState extends State<SeriesPage> {
                         },
                         children: [
                           if (episodes == null)
-                            const Padding(
-                              padding: EdgeInsets.all(16.0),
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
                               child: Center(
                                 child: CircularProgressIndicator(
-                                  color: Colors.white,
+                                  color: theme.colorScheme.primary,
                                 ),
                               ),
                             )
@@ -727,21 +742,21 @@ class _SeriesPageState extends State<SeriesPage> {
                               return Dismissible(
                                 key: Key('S${seasonNum}E$epNum'),
                                 background: Container(
-                                  color: Colors.green,
+                                  color: theme.colorScheme.primaryContainer,
                                   alignment: Alignment.centerLeft,
                                   padding: const EdgeInsets.only(left: 20),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.check,
-                                    color: Colors.white,
+                                    color: theme.colorScheme.onPrimaryContainer,
                                   ),
                                 ),
                                 secondaryBackground: Container(
-                                  color: Colors.red,
+                                  color: theme.colorScheme.errorContainer,
                                   alignment: Alignment.centerRight,
                                   padding: const EdgeInsets.only(right: 20),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.close,
-                                    color: Colors.white,
+                                    color: theme.colorScheme.onErrorContainer,
                                   ),
                                 ),
                                 confirmDismiss: (direction) async {
@@ -762,8 +777,8 @@ class _SeriesPageState extends State<SeriesPage> {
                                     '${episode['episode_number']}. ${episode['name']}',
                                     style: TextStyle(
                                       color: isWatched
-                                          ? Colors.greenAccent
-                                          : Colors.white,
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurface,
                                       fontWeight: isWatched
                                           ? FontWeight.bold
                                           : FontWeight.normal,
@@ -777,8 +792,11 @@ class _SeriesPageState extends State<SeriesPage> {
                                           episode['overview'].isNotEmpty)
                                         Text(
                                           episode['overview'],
-                                          style: const TextStyle(
-                                            color: Colors.white54,
+                                          style: TextStyle(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant
+                                                .withOpacity(0.7),
                                             fontSize: 12,
                                           ),
                                           maxLines: 2,
@@ -792,8 +810,8 @@ class _SeriesPageState extends State<SeriesPage> {
                                           ? Icons.check_circle
                                           : Icons.radio_button_unchecked,
                                       color: isWatched
-                                          ? Colors.green
-                                          : Colors.white54,
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
                                     ),
                                     onPressed: () =>
                                         _updateProgress(seasonNum, epNum),
@@ -829,13 +847,17 @@ class _SeriesPageState extends State<SeriesPage> {
         child: Container(
           decoration: BoxDecoration(
             color: isActive
-                ? Colors.white.withOpacity(0.2)
-                : Colors.white.withOpacity(0.1),
+                ? Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withOpacity(0.5)
+                : Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive
-                  ? Colors.white.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.2),
+                  ? Theme.of(context).colorScheme.outline.withOpacity(0.5)
+                  : Theme.of(context).colorScheme.outline.withOpacity(0.2),
             ),
           ),
           child: Material(
@@ -847,12 +869,17 @@ class _SeriesPageState extends State<SeriesPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, color: isActive ? activeColor : Colors.white),
+                    Icon(
+                      icon,
+                      color: isActive
+                          ? activeColor
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       label,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

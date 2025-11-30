@@ -7,6 +7,7 @@ import '../widget/toast.dart';
 import 'settings.dart';
 import 'movies_watched.dart';
 import 'series_watched.dart';
+import '../main.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -180,21 +181,46 @@ class _ProfilePageState extends State<ProfilePage> {
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Settings Icon (Top Right)
+                  // Settings & Theme Icons (Top Right)
                   Align(
                     alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: const Icon(Icons.settings, color: Colors.white),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SettingsPage(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ValueListenableBuilder<ThemeMode>(
+                          valueListenable: themeNotifier,
+                          builder: (context, currentMode, child) {
+                            final isDark = currentMode == ThemeMode.dark;
+                            return IconButton(
+                              icon: Icon(
+                                isDark ? Icons.dark_mode : Icons.light_mode,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              onPressed: () {
+                                themeNotifier.value = isDark
+                                    ? ThemeMode.light
+                                    : ThemeMode.dark;
+                              },
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.settings,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
-                        ).then(
-                          (_) => _fetchProfileData(),
-                        ); // Refresh data on return
-                      },
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SettingsPage(),
+                              ),
+                            ).then(
+                              (_) => _fetchProfileData(),
+                            ); // Refresh data on return
+                          },
+                        ),
+                      ],
                     ),
                   ),
 
@@ -206,17 +232,24 @@ class _ProfilePageState extends State<ProfilePage> {
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            width: 2,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.shadow.withOpacity(0.2),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
                           ],
                         ),
                         child: CircleAvatar(
-                          backgroundColor: Colors.grey[800],
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           backgroundImage: _avatarUrl != null
                               ? NetworkImage(_avatarUrl!)
                               : null,
@@ -225,9 +258,11 @@ class _ProfilePageState extends State<ProfilePage> {
                                   _name.isNotEmpty
                                       ? _name[0].toUpperCase()
                                       : 'U',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 40,
-                                    color: Colors.white,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 )
@@ -237,8 +272,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 16),
                       Text(
                         _name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'BitcountGridSingle',
@@ -247,8 +282,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 8),
                       Text(
                         _email,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
                           fontSize: 14,
                         ),
                       ),
@@ -261,8 +298,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
               // Stats Grid
               if (_isLoading)
-                const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+                Center(
+                  child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 )
               else
                 Column(
@@ -373,16 +412,26 @@ class _ProfilePageState extends State<ProfilePage> {
                   onPressed: () async {
                     await SupabaseService.signOut();
                     if (mounted) {
-                      Navigator.of(context).pushReplacementNamed('/login');
+                      Navigator.of(
+                        context,
+                      ).pushNamedAndRemoveUntil('/login', (route) => false);
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withOpacity(0.2),
-                    foregroundColor: Colors.red,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.errorContainer,
+                    foregroundColor: Theme.of(
+                      context,
+                    ).colorScheme.onErrorContainer,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.red.withOpacity(0.5)),
+                      side: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withOpacity(0.5),
+                      ),
                     ),
                   ),
                   child: const Text('Sign Out'),
@@ -417,9 +466,13 @@ class _ProfilePageState extends State<ProfilePage> {
           height: 140, // Square-ish shape
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+            ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -430,7 +483,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 value,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: isSmallText ? 16 : 28,
                   fontWeight: FontWeight.bold,
                 ),
@@ -441,7 +494,12 @@ class _ProfilePageState extends State<ProfilePage> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                  fontSize: 12,
+                ),
               ),
             ],
           ),

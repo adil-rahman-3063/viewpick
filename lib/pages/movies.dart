@@ -147,8 +147,8 @@ class _MoviePageState extends State<MoviePage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
+        body: Center(
+          child: CircularProgressIndicator(color: theme.colorScheme.primary),
         ),
       );
     }
@@ -157,10 +157,10 @@ class _MoviePageState extends State<MoviePage> {
       return Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(backgroundColor: Colors.transparent),
-        body: const Center(
+        body: Center(
           child: Text(
             'Failed to load movie',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: theme.colorScheme.onSurface),
           ),
         ),
       );
@@ -193,7 +193,7 @@ class _MoviePageState extends State<MoviePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios, color: theme.colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -250,8 +250,8 @@ class _MoviePageState extends State<MoviePage> {
                 children: [
                   Text(
                     '$title ($year)',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'BitcountGridSingle',
@@ -265,8 +265,8 @@ class _MoviePageState extends State<MoviePage> {
                       const SizedBox(width: 4),
                       Text(
                         rating,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -274,8 +274,8 @@ class _MoviePageState extends State<MoviePage> {
                       const SizedBox(width: 16),
                       Text(
                         runtime,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontSize: 14,
                         ),
                       ),
@@ -283,8 +283,8 @@ class _MoviePageState extends State<MoviePage> {
                       Expanded(
                         child: Text(
                           genres,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
                             fontSize: 14,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -323,10 +323,10 @@ class _MoviePageState extends State<MoviePage> {
 
                   const SizedBox(height: 24),
 
-                  const Text(
+                  Text(
                     'Overview',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -334,8 +334,8 @@ class _MoviePageState extends State<MoviePage> {
                   const SizedBox(height: 8),
                   Text(
                     overview ?? 'No description available.',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
                       fontSize: 16,
                       height: 1.5,
                     ),
@@ -343,10 +343,10 @@ class _MoviePageState extends State<MoviePage> {
                   const SizedBox(height: 24),
 
                   if (flatrate != null && flatrate.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Stream On',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -373,10 +373,10 @@ class _MoviePageState extends State<MoviePage> {
                   ],
 
                   if (rent != null && rent.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Rent',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -403,10 +403,10 @@ class _MoviePageState extends State<MoviePage> {
                   ],
 
                   if (buy != null && buy.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Buy',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -433,10 +433,10 @@ class _MoviePageState extends State<MoviePage> {
                   ],
 
                   if (_cast != null && _cast!.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Cast',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -460,28 +460,33 @@ class _MoviePageState extends State<MoviePage> {
                                   child: Container(
                                     width: 80,
                                     height: 80,
-                                    color: Colors.grey[800],
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     child: profilePath != null
                                         ? Image.network(
                                             'https://image.tmdb.org/t/p/w200$profilePath',
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
-                                                ),
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.person,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
                                           )
-                                        : const Icon(
+                                        : Icon(
                                             Icons.person,
-                                            color: Colors.white,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   actor['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -491,8 +496,8 @@ class _MoviePageState extends State<MoviePage> {
                                 ),
                                 Text(
                                   actor['character'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     fontSize: 10,
                                   ),
                                   maxLines: 2,
@@ -509,10 +514,10 @@ class _MoviePageState extends State<MoviePage> {
                   ],
 
                   if (_crew != null && _crew!.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Crew',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -536,28 +541,33 @@ class _MoviePageState extends State<MoviePage> {
                                   child: Container(
                                     width: 80,
                                     height: 80,
-                                    color: Colors.grey[800],
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     child: profilePath != null
                                         ? Image.network(
                                             'https://image.tmdb.org/t/p/w200$profilePath',
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
-                                                ),
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.person,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
                                           )
-                                        : const Icon(
+                                        : Icon(
                                             Icons.person,
-                                            color: Colors.white,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   member['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -567,8 +577,8 @@ class _MoviePageState extends State<MoviePage> {
                                 ),
                                 Text(
                                   member['job'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     fontSize: 10,
                                   ),
                                   maxLines: 2,
@@ -597,8 +607,10 @@ class _MoviePageState extends State<MoviePage> {
     required String label,
     required VoidCallback onTap,
     bool isActive = false,
-    Color activeColor = Colors.white,
+    Color? activeColor,
   }) {
+    final effectiveActiveColor =
+        activeColor ?? Theme.of(context).colorScheme.primary;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: BackdropFilter(
@@ -606,13 +618,17 @@ class _MoviePageState extends State<MoviePage> {
         child: Container(
           decoration: BoxDecoration(
             color: isActive
-                ? Colors.white.withOpacity(0.2)
-                : Colors.white.withOpacity(0.1),
+                ? Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withOpacity(0.5)
+                : Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive
-                  ? Colors.white.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.2),
+                  ? Theme.of(context).colorScheme.outline.withOpacity(0.5)
+                  : Theme.of(context).colorScheme.outline.withOpacity(0.2),
             ),
           ),
           child: Material(
@@ -624,12 +640,17 @@ class _MoviePageState extends State<MoviePage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, color: isActive ? activeColor : Colors.white),
+                    Icon(
+                      icon,
+                      color: isActive
+                          ? effectiveActiveColor
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       label,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

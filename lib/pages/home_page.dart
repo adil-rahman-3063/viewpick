@@ -30,7 +30,7 @@ class _HomePageState extends State<HomePage> {
           HomeTab(isMovieMode: _isMovieMode),
 
           // Static Title
-          const Positioned(
+          Positioned(
             top: 50,
             left: 0,
             right: 0,
@@ -42,7 +42,7 @@ class _HomePageState extends State<HomePage> {
                   fontSize: 40,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 4,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -135,102 +135,98 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<List<Map<String, dynamic>>> _fetchYouMayLike() async {
     try {
+      // 1. Get Liked Genres
       final likedGenres = widget.isMovieMode
           ? await SupabaseService.getLikedMovieGenres()
           : await SupabaseService.getLikedTVGenres();
-      print('=== FETCHING YOU MAY LIKE ===');
-      print('Liked genres from DB: $likedGenres');
 
-      // Get user's preferred languages
+      // 2. Get User Languages
       final userLanguages = SupabaseService.getUserLanguages();
-      print('User preferred languages: $userLanguages');
 
-      if (likedGenres.isEmpty) {
-        print(
-          'No liked genres, showing popular content from preferred languages',
-        );
-        // Fallback to popular content using first preferred language
-        final language = userLanguages.isNotEmpty ? userLanguages[0] : 'en-US';
-        final items = widget.isMovieMode
-            ? await _tmdbService.getPopularMovies(language: language)
-            : await _tmdbService.getPopularTV(language: language);
-        return items.take(10).map((item) => _formatItem(item)).toList();
-      }
-
+      // 3. Map Genres to IDs
       final genreMap = widget.isMovieMode
           ? await _tmdbService.getGenreList()
           : await _tmdbService.getTVGenreList();
 
-      print('Genre map keys: ${genreMap.keys.toList()}');
-      print('Genre map values: ${genreMap.values.toList()}');
-
-      // Case-insensitive matching with fuzzy logic
       final likedGenreIds = <int>[];
       for (final likedGenre in likedGenres) {
         for (final entry in genreMap.entries) {
           if (entry.value.toLowerCase().trim() ==
               likedGenre.toLowerCase().trim()) {
             likedGenreIds.add(entry.key);
-            print('Matched: "$likedGenre" -> ${entry.key} (${entry.value})');
             break;
           }
         }
       }
 
-      print('Matched genre IDs: $likedGenreIds');
-
-      if (likedGenreIds.isEmpty || userLanguages.isEmpty) {
-        print('No genre IDs matched or no languages, falling back to popular');
-        // Fallback to popular content
-        final language = userLanguages.isNotEmpty ? userLanguages[0] : 'en-US';
-        final items = widget.isMovieMode
-            ? await _tmdbService.getPopularMovies(language: language)
-            : await _tmdbService.getPopularTV(language: language);
-        return items.take(10).map((item) => _formatItem(item)).toList();
+      // 4. Determine Languages to fetch from
+      // If no user languages, default to English
+      // If multiple, take up to 3 random ones to mix content
+      List<String> targetLanguages = [];
+      if (userLanguages.isEmpty) {
+        targetLanguages = ['en-US'];
+      } else {
+        targetLanguages = List.from(userLanguages)..shuffle();
+        if (targetLanguages.length > 3) {
+          targetLanguages = targetLanguages.take(3).toList();
+        }
       }
 
-      // Fetch content using random genre and language from user preferences
-      final randomGenreId =
-          likedGenreIds[Random().nextInt(likedGenreIds.length)];
-      final randomLanguage =
-          userLanguages[Random().nextInt(userLanguages.length)];
-      print('Using genre ID: $randomGenreId, language: $randomLanguage');
+      List<dynamic> allRawItems = [];
 
-      final items = widget.isMovieMode
-          ? await _tmdbService.getMoviesByGenre(
-              randomGenreId,
-              language: randomLanguage,
-            )
-          : await _tmdbService.getTVByGenre(
-              randomGenreId,
-              language: randomLanguage,
-            );
+      // 5. Fetch content for each language
+      final futures = targetLanguages.map((language) async {
+        // Extract language code (e.g. 'ml' from 'ml-IN') for strict filtering
+        final langCode = language.split('-')[0];
 
-      print('Fetched ${items.length} items');
-      // Print genres for each fetched item for debugging
-      for (final item in items) {
-        final genreIds = item['genre_ids'] ?? [];
-        print(
-          'Fetched item: ${item['title'] ?? item['name']}, Genre IDs: $genreIds',
-        );
+        if (likedGenreIds.isNotEmpty) {
+          // If we have liked genres, pick a random one for this language
+          final randomGenreId =
+              likedGenreIds[Random().nextInt(likedGenreIds.length)];
+          return widget.isMovieMode
+              ? await _tmdbService.getMoviesByGenre(
+                  randomGenreId,
+                  language: language,
+                  withOriginalLanguage: langCode,
+                )
+              : await _tmdbService.getTVByGenre(
+                  randomGenreId,
+                  language: language,
+                  withOriginalLanguage: langCode,
+                );
+        } else {
+          // If no liked genres, fetch popular/trending for this language
+          return widget.isMovieMode
+              ? await _tmdbService.getMoviesByOriginalLanguage(
+                  langCode,
+                  language: language,
+                )
+              : await _tmdbService.getTVByOriginalLanguage(
+                  langCode,
+                  language: language,
+                );
+        }
+      });
+
+      final results = await Future.wait(futures);
+      for (var list in results) {
+        allRawItems.addAll(list);
       }
-      final result = items.take(10).map((item) => _formatItem(item)).toList();
-      print('Returning ${result.length} formatted items');
-      return result;
-    } catch (e, stackTrace) {
+
+      // 6. Deduplicate and Shuffle
+      final uniqueItems = <int, Map<String, dynamic>>{};
+      for (var item in allRawItems) {
+        if (item['id'] != null) {
+          uniqueItems[item['id']] = _formatItem(item);
+        }
+      }
+
+      final finalList = uniqueItems.values.toList()..shuffle();
+
+      return finalList.take(10).toList();
+    } catch (e) {
       print('Error in _fetchYouMayLike: $e');
-      print('Stack trace: $stackTrace');
-      // Return popular content as fallback
-      try {
-        final userLanguages = SupabaseService.getUserLanguages();
-        final language = userLanguages.isNotEmpty ? userLanguages[0] : 'en-US';
-        final items = widget.isMovieMode
-            ? await _tmdbService.getPopularMovies(language: language)
-            : await _tmdbService.getPopularTV(language: language);
-        return items.take(10).map((item) => _formatItem(item)).toList();
-      } catch (e2) {
-        return [];
-      }
+      return [];
     }
   }
 
@@ -375,8 +371,8 @@ class _HomeTabState extends State<HomeTab> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -426,8 +422,10 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
+      return Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
       );
     }
 

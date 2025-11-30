@@ -49,11 +49,12 @@ class TMDBService {
 
   Future<List<dynamic>> getMoviesByOriginalLanguage(
     String languageCode, {
+    String language = 'en-US',
     int page = 1,
   }) async {
     final response = await http.get(
       Uri.parse(
-        '$_baseUrl/discover/movie?with_original_language=$languageCode&sort_by=popularity.desc&page=$page',
+        '$_baseUrl/discover/movie?with_original_language=$languageCode&language=$language&sort_by=popularity.desc&page=$page',
       ),
     );
     if (response.statusCode == 200) {
@@ -131,11 +132,12 @@ class TMDBService {
 
   Future<List<dynamic>> getTVByOriginalLanguage(
     String languageCode, {
+    String language = 'en-US',
     int page = 1,
   }) async {
     final response = await http.get(
       Uri.parse(
-        '$_baseUrl/discover/tv?with_original_language=$languageCode&sort_by=popularity.desc&page=$page',
+        '$_baseUrl/discover/tv?with_original_language=$languageCode&language=$language&sort_by=popularity.desc&page=$page',
       ),
     );
     if (response.statusCode == 200) {

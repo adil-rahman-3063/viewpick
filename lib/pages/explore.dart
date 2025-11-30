@@ -151,9 +151,13 @@ class _ExplorePageState extends State<ExplorePage> {
         margin: const EdgeInsets.only(bottom: 16),
         height: 140,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          ),
         ),
         child: Row(
           children: [
@@ -171,8 +175,11 @@ class _ExplorePageState extends State<ExplorePage> {
                 errorBuilder: (context, error, stackTrace) => Container(
                   width: 100,
                   height: 140,
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.error, color: Colors.white),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Icon(
+                    Icons.error,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ),
             ),
@@ -190,8 +197,8 @@ class _ExplorePageState extends State<ExplorePage> {
                     // Title
                     Text(
                       item['title'],
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -202,8 +209,8 @@ class _ExplorePageState extends State<ExplorePage> {
                     // Year | Type
                     Text(
                       '${item['year']} | ${item['type'] == 'movie' ? 'Movie' : 'TV Series'}',
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 14,
                       ),
                     ),
@@ -212,8 +219,10 @@ class _ExplorePageState extends State<ExplorePage> {
                     Flexible(
                       child: Text(
                         item['description'],
-                        style: const TextStyle(
-                          color: Colors.white60,
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withOpacity(0.8),
                           fontSize: 12,
                         ),
                         maxLines: 3,
@@ -237,8 +246,8 @@ class _ExplorePageState extends State<ExplorePage> {
       body: Column(
         children: [
           // VIEWPICK Title
-          const Padding(
-            padding: EdgeInsets.only(top: 50.0, bottom: 20.0),
+          Padding(
+            padding: const EdgeInsets.only(top: 50.0, bottom: 20.0),
             child: Text(
               'VIEWPICK',
               style: TextStyle(
@@ -246,7 +255,7 @@ class _ExplorePageState extends State<ExplorePage> {
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 4,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -259,24 +268,45 @@ class _ExplorePageState extends State<ExplorePage> {
             child: TextField(
               controller: _searchController,
               onChanged: _onSearchChanged,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search movies and series...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                hintStyle: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.1),
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  borderSide: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withOpacity(0.2),
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  borderSide: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withOpacity(0.2),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.4)),
+                  borderSide: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.5),
+                  ),
                 ),
               ),
             ),
@@ -285,8 +315,10 @@ class _ExplorePageState extends State<ExplorePage> {
           // Grid view
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   )
                 : _isSearching
                 ? ListView.builder(

@@ -22,18 +22,24 @@ class MovieSeriesToggle extends StatelessWidget {
           height: 50,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(25),
-            color: Colors.white.withOpacity(0.1),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildToggleButton(
+                context,
                 label: 'Movies',
                 isSelected: isMovieMode,
                 onTap: () => onToggle(true),
               ),
               _buildToggleButton(
+                context,
                 label: 'Series',
                 isSelected: !isMovieMode,
                 onTap: () => onToggle(false),
@@ -45,7 +51,8 @@ class MovieSeriesToggle extends StatelessWidget {
     );
   }
 
-  Widget _buildToggleButton({
+  Widget _buildToggleButton(
+    BuildContext context, {
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
@@ -60,11 +67,13 @@ class MovieSeriesToggle extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: isSelected
-              ? Colors.white.withOpacity(0.2)
+              ? Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withOpacity(0.5)
               : Colors.transparent,
           border: Border.all(
             color: isSelected
-                ? Colors.white.withOpacity(0.3)
+                ? Theme.of(context).colorScheme.outline.withOpacity(0.5)
                 : Colors.transparent,
             width: 1,
           ),
@@ -73,7 +82,7 @@ class MovieSeriesToggle extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               fontSize: 14,
             ),

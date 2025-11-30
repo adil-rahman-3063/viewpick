@@ -49,47 +49,62 @@ class _SwipePageState extends State<SwipePage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            title: const Text(
+            title: Text(
               'How to Swipe',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             ),
-            content: const Column(
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.swipe_right, color: Colors.green),
-                    SizedBox(width: 10),
+                    Icon(
+                      Icons.swipe_right,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 10),
                     Text(
                       'Swipe Right to Like',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.swipe_left, color: Colors.red),
-                    SizedBox(width: 10),
+                    Icon(
+                      Icons.swipe_left,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 10),
                     Text(
                       'Swipe Left to Dislike',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.swipe_up, color: Colors.blue),
-                    SizedBox(width: 10),
+                    Icon(
+                      Icons.swipe_up,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                    const SizedBox(width: 10),
                     Text(
                       'Swipe Up to Skip',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -101,10 +116,10 @@ class _SwipePageState extends State<SwipePage> {
                   Navigator.of(context).pop();
                   prefs.setBool('seen_swipe_instructions', true);
                 },
-                child: const Text(
+                child: Text(
                   'Got it!',
                   style: TextStyle(
-                    color: Colors.blueAccent,
+                    color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -545,14 +560,20 @@ class _SwipePageState extends State<SwipePage> {
                       width: MediaQuery.of(context).size.width * 0.9,
                       height: MediaQuery.of(context).size.height * 0.68,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withOpacity(0.2),
                         ),
                       ),
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
                   )
@@ -566,7 +587,9 @@ class _SwipePageState extends State<SwipePage> {
                           child: Text(
                             'Could not load ${_isMovieMode ? "movies" : "series"}. Please check your internet connection.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
                         ),
                         ElevatedButton.icon(
@@ -574,8 +597,12 @@ class _SwipePageState extends State<SwipePage> {
                           icon: const Icon(Icons.refresh),
                           label: const Text('Retry'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onPrimary,
                           ),
                         ),
                       ],
@@ -689,12 +716,16 @@ class _SwipePageState extends State<SwipePage> {
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            ),
           ),
           child: IconButton(
-            icon: Icon(icon, color: Colors.white),
+            icon: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
             onPressed: onPressed,
           ),
         ),
@@ -712,10 +743,10 @@ class _SwipePageState extends State<SwipePage> {
     if (horizontalThresholdPercentage != 0) {
       if (horizontalThresholdPercentage > 0) {
         // Swiping Right - Green (Like)
-        overlayColor = Colors.green;
+        overlayColor = Theme.of(context).colorScheme.primary;
       } else {
         // Swiping Left - Red (Dislike)
-        overlayColor = Colors.red;
+        overlayColor = Theme.of(context).colorScheme.error;
       }
 
       // Calculate opacity based on swipe distance
@@ -748,9 +779,13 @@ class _SwipePageState extends State<SwipePage> {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withOpacity(0.9),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              ),
             ),
             child: Stack(
               fit: StackFit.expand,
@@ -768,10 +803,12 @@ class _SwipePageState extends State<SwipePage> {
                             fit: BoxFit.cover,
                             width: double.infinity,
                             errorBuilder: (context, error, stackTrace) =>
-                                const Center(
+                                Center(
                                   child: Icon(
                                     Icons.movie,
-                                    color: Colors.white,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     size: 50,
                                   ),
                                 ),
@@ -781,10 +818,10 @@ class _SwipePageState extends State<SwipePage> {
                       const SizedBox(height: 16),
                       Text(
                         movie['name'] ?? 'No Title',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 24,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -792,18 +829,22 @@ class _SwipePageState extends State<SwipePage> {
                         children: [
                           Text(
                             movie['year'] ?? '',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
-                              color: Colors.white70,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Text(
                               movie['genre'] ?? '',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.white70,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -813,9 +854,11 @@ class _SwipePageState extends State<SwipePage> {
                       const SizedBox(height: 8),
                       Text(
                         movie['description'] ?? 'No Description',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white60,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withOpacity(0.8),
                         ),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -918,12 +961,16 @@ class _SwipePageState extends State<SwipePage> {
               child: Container(
                 padding: const EdgeInsets.all(24.0),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.8),
+                  color: Theme.of(context).colorScheme.surfaceContainer,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(30),
                   ),
                   border: Border(
-                    top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    top: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withOpacity(0.2),
+                    ),
                   ),
                 ),
                 child: Column(
@@ -934,7 +981,9 @@ class _SwipePageState extends State<SwipePage> {
                       height: 4,
                       margin: const EdgeInsets.only(bottom: 20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -960,26 +1009,32 @@ class _SwipePageState extends State<SwipePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+          ),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white70),
+            Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(width: 16),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
             ),
             const Spacer(),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: Colors.white30,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withOpacity(0.5),
               size: 16,
             ),
           ],
@@ -995,10 +1050,10 @@ class _SwipePageState extends State<SwipePage> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           'Why did you dislike this?',
           style: TextStyle(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -1050,14 +1105,17 @@ class _SwipePageState extends State<SwipePage> {
         Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(
+                Icons.arrow_back,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
               onPressed: () => onNavigate('main'),
             ),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Which genre?',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1070,7 +1128,12 @@ class _SwipePageState extends State<SwipePage> {
         const SizedBox(height: 20),
         ...genres.map(
           (genre) => ListTile(
-            title: Text(genre, style: const TextStyle(color: Colors.white70)),
+            title: Text(
+              genre,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             onTap: () {
               SupabaseService.addDislike(
                 itemId: movie['id'],
@@ -1097,14 +1160,17 @@ class _SwipePageState extends State<SwipePage> {
         Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(
+                Icons.arrow_back,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
               onPressed: () => onNavigate('main'),
             ),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Language Preference',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1115,9 +1181,12 @@ class _SwipePageState extends State<SwipePage> {
           ],
         ),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Show less content in this language?',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 16,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 30),
@@ -1126,14 +1195,19 @@ class _SwipePageState extends State<SwipePage> {
           children: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
+              child: Text(
                 'No',
-                style: TextStyle(color: Colors.white, fontSize: 18),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 18,
+                ),
               ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.1),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
               ),
               onPressed: () {
                 SupabaseService.addDislike(
@@ -1147,9 +1221,12 @@ class _SwipePageState extends State<SwipePage> {
                 Navigator.pop(context);
                 Toast.show(context, 'We\'ll show less from this language');
               },
-              child: const Text(
+              child: Text(
                 'Yes',
-                style: TextStyle(color: Colors.white, fontSize: 18),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 18,
+                ),
               ),
             ),
           ],
@@ -1169,14 +1246,17 @@ class _SwipePageState extends State<SwipePage> {
         Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(
+                Icons.arrow_back,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
               onPressed: () => onNavigate('main'),
             ),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Year Preference',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1190,7 +1270,9 @@ class _SwipePageState extends State<SwipePage> {
         ListTile(
           title: Text(
             'Less from $year',
-            style: const TextStyle(color: Colors.white70),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           onTap: () {
             SupabaseService.addDislike(
@@ -1206,7 +1288,9 @@ class _SwipePageState extends State<SwipePage> {
         ListTile(
           title: Text(
             'Less before $year',
-            style: const TextStyle(color: Colors.white70),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           onTap: () {
             SupabaseService.addDislike(
@@ -1234,12 +1318,14 @@ class _SwipePageState extends State<SwipePage> {
           child: Container(
             padding: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.surfaceContainer,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(30),
               ),
               border: Border(
-                top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                top: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                ),
               ),
             ),
             child: Column(
@@ -1250,23 +1336,28 @@ class _SwipePageState extends State<SwipePage> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 Text(
                   movie['name'],
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                Text(
                   'Add to...',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 30),
                 Row(
@@ -1342,8 +1433,11 @@ class _SwipePageState extends State<SwipePage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: Colors.white)),
+      builder: (context) => Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
 
     try {
@@ -1398,8 +1492,11 @@ class _SwipePageState extends State<SwipePage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: Colors.white)),
+      builder: (context) => Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
 
     try {
@@ -1431,12 +1528,16 @@ class _SwipePageState extends State<SwipePage> {
               height: MediaQuery.of(context).size.height * 0.8,
               padding: const EdgeInsets.all(24.0),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.85),
+                color: Theme.of(context).colorScheme.surfaceContainer,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(30),
                 ),
                 border: Border(
-                  top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  top: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withOpacity(0.2),
+                  ),
                 ),
               ),
               child: Column(
@@ -1446,14 +1547,16 @@ class _SwipePageState extends State<SwipePage> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                   Text(
                     'Watched till...',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1466,9 +1569,11 @@ class _SwipePageState extends State<SwipePage> {
                         if (index == 0) {
                           // "None" option
                           return ListTile(
-                            title: const Text(
+                            title: Text(
                               'None (Watched All / Clear)',
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                             onTap: () {
                               Navigator.pop(context);
@@ -1496,14 +1601,22 @@ class _SwipePageState extends State<SwipePage> {
                           child: ExpansionTile(
                             title: Text(
                               season['name'],
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                             subtitle: Text(
                               '$episodeCount Episodes',
-                              style: const TextStyle(color: Colors.white70),
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                            iconColor: Colors.white,
-                            collapsedIconColor: Colors.white70,
+                            iconColor: Theme.of(context).colorScheme.onSurface,
+                            collapsedIconColor: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             children: [
                               GridView.builder(
                                 shrinkWrap: true,
@@ -1531,16 +1644,24 @@ class _SwipePageState extends State<SwipePage> {
                                     child: Container(
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.1),
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.3),
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .outline
+                                              .withOpacity(0.2),
                                         ),
                                       ),
                                       child: Text(
                                         '$epNum',
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                         ),
                                       ),
                                     ),
@@ -1584,18 +1705,26 @@ class _SwipePageState extends State<SwipePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          ),
         ),
         child: Column(
           children: [
-            Icon(icon, color: Colors.white, size: 32),
+            Icon(
+              icon,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 32,
+            ),
             const SizedBox(height: 10),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),

@@ -104,7 +104,9 @@ class FrostedNavBar extends StatelessWidget {
                   color: surface.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(_pillRadius),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.1),
                     width: 1,
                   ),
                 ),
@@ -176,18 +178,20 @@ class _NavItem extends StatelessWidget {
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
-                  height: selected ? 36 : 32,
-                  width: selected ? 36 : 32,
+                  height: selected ? 44 : 40,
+                  width: selected ? 44 : 40,
                   decoration: BoxDecoration(
                     color: selected
-                        ? color.withOpacity(0.18)
+                        ? color.withOpacity(0.25)
                         : Colors.transparent,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     icon,
-                    color: selected ? color : color.withOpacity(0.85),
-                    size: selected ? 20 : 20,
+                    color: selected
+                        ? color
+                        : Theme.of(context).colorScheme.onSurface,
+                    size: selected ? 26 : 24,
                   ),
                 ),
               ],

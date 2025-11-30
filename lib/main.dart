@@ -57,10 +57,17 @@ Future<void> main(List<String> args) async {
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
+  String initialRoute = '/';
+
   if (supabaseUrl != null && supabaseAnonKey != null) {
     await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
     // ignore: avoid_print
     print('Supabase initialized');
+
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      initialRoute = '/home';
+    }
   } else {
     // ignore: avoid_print
     print(
@@ -68,34 +75,42 @@ Future<void> main(List<String> args) async {
     );
   }
 
-  runApp(MyApp(initialLink: initialLinkFromArgs));
+  runApp(MyApp(initialLink: initialLinkFromArgs, initialRoute: initialRoute));
 }
+
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
 class MyApp extends StatelessWidget {
   final String? initialLink;
+  final String initialRoute;
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-  MyApp({super.key, this.initialLink});
+  MyApp({super.key, this.initialLink, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ViewPick',
-      navigatorKey: navigatorKey,
-      // Use Material 3 with brown seed color
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      // Default to dark mode
-      themeMode: ThemeMode.dark,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, currentMode, child) {
+        return MaterialApp(
+          title: 'ViewPick',
+          navigatorKey: navigatorKey,
+          // Use Material 3 with brown seed color
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          // Dynamic theme mode
+          themeMode: currentMode,
 
-      // Start at the login page and provide a named route for home.
-      initialRoute: '/',
-      routes: {
-        '/': (context) => LoginPage(initialLink: initialLink),
-        '/login': (context) => LoginPage(initialLink: initialLink),
-        '/home': (context) => HomePage(),
-        '/register': (context) => const RegisterPage(),
-        '/settings': (context) => const SettingsPage(),
+          // Start at the login page and provide a named route for home.
+          initialRoute: initialRoute,
+          routes: {
+            '/': (context) => LoginPage(initialLink: initialLink),
+            '/login': (context) => LoginPage(initialLink: initialLink),
+            '/home': (context) => HomePage(),
+            '/register': (context) => const RegisterPage(),
+            '/settings': (context) => const SettingsPage(),
+          },
+        );
       },
     );
   }
