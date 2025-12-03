@@ -209,14 +209,18 @@ class _SwipePageState extends State<SwipePage> {
         _isMovieMode
             ? SupabaseService.getLikedMovieGenres()
             : SupabaseService.getLikedTVGenres(),
+        SupabaseService.getExcludedIds(),
       ]);
 
       final dislikes = results[0] as List<Map<String, dynamic>>;
       final likedGenres = results[1] as List<String>;
+      final excludedIds = results[2] as Set<int>;
       final hasLikedContent = likedGenres.isNotEmpty;
       final userLanguages = SupabaseService.getUserLanguages();
 
       bool isDisliked(Map<String, dynamic> item) {
+        if (excludedIds.contains(item['id'])) return true;
+
         final itemYear =
             int.tryParse(
               (item['release_date'] ?? item['first_air_date'] ?? '')
@@ -252,24 +256,45 @@ class _SwipePageState extends State<SwipePage> {
 
       // 2. Prepare Personalized Content Fetch
       Future<void> fetchPersonalized() async {
-        if (userLanguages.isEmpty) return;
+        // For movies, we strictly follow user languages.
+        // For series, we use a broader set with English bias as requested.
+        List<String> availableLanguages = [];
 
         final dislikedLanguages = dislikes
             .where((d) => d['reason'] == 'language')
             .map((d) => d['details']['language_code'])
             .toSet();
 
-        final availableLanguages = userLanguages.where((lang) {
-          return !dislikedLanguages.any((dl) => lang.contains(dl));
-        }).toList();
+        if (_isMovieMode) {
+          if (userLanguages.isEmpty) return;
+          availableLanguages = userLanguages.where((lang) {
+            return !dislikedLanguages.any((dl) => lang.contains(dl));
+          }).toList();
+        } else {
+          // Series mode: Use all supported languages + extra English weight
+          availableLanguages = List.from(
+            SupabaseService.supportedLanguageCodes,
+          );
+          // Add English 3 more times to give it a "slight upper hand"
+          availableLanguages.addAll(['en-US', 'en-US', 'en-US']);
+
+          // Filter out explicitly disliked languages
+          availableLanguages = availableLanguages.where((lang) {
+            return !dislikedLanguages.any((dl) => lang.contains(dl));
+          }).toList();
+        }
 
         if (availableLanguages.isEmpty) return;
 
         // Prepare futures for 3 cards
         final futures = List.generate(3, (i) async {
-          final langIndex =
-              (_languageCycleIndex + i) % availableLanguages.length;
-          final targetLanguage = availableLanguages[langIndex];
+          // For series, pick random language each time to ensure variety
+          // For movies, cycle through user languages
+          final targetLanguage = _isMovieMode
+              ? availableLanguages[(_languageCycleIndex + i) %
+                    availableLanguages.length]
+              : availableLanguages[Random().nextInt(availableLanguages.length)];
+
           final targetLanguageCode = targetLanguage.split('-')[0];
 
           // Try Genre-based first
@@ -466,6 +491,20 @@ class _SwipePageState extends State<SwipePage> {
     _isFetchingMore = true;
     print('Fetching more content...');
 
+    // Append loading card if not present and we are running low
+    if (_movies.isEmpty || _movies.last['id'] != -1) {
+      setState(() {
+        _movies.add({
+          'id': -1,
+          'name': 'Loading...',
+          'image': '',
+          'description': 'Fetching more content...',
+          'genre': '',
+          'year': '',
+        });
+      });
+    }
+
     int retryCount = 0;
     bool addedContent = false;
 
@@ -485,22 +524,36 @@ class _SwipePageState extends State<SwipePage> {
             );
           }).toList();
 
-          if (uniqueContent.isNotEmpty) {
+          if (mounted) {
             setState(() {
-              _movies.addAll(uniqueContent);
+              // Remove loading card
+              final loadingIndex = _movies.indexWhere((m) => m['id'] == -1);
+              if (loadingIndex != -1) {
+                _movies.removeAt(loadingIndex);
+                // Insert new content at the position of the loading card
+                _movies.insertAll(loadingIndex, uniqueContent);
+              } else {
+                _movies.addAll(uniqueContent);
+              }
             });
             print(
               'Added ${uniqueContent.length} new items. Total: ${_movies.length}',
             );
             addedContent = true;
-          } else {
-            print('Fetched content was all duplicates.');
           }
+        } else {
+          print('Fetched content was empty or all duplicates.');
         }
         retryCount++;
       }
     } catch (e) {
       print('Error loading more content: $e');
+      // Remove loading card on error
+      if (mounted) {
+        setState(() {
+          _movies.removeWhere((m) => m['id'] == -1);
+        });
+      }
     } finally {
       _isFetchingMore = false;
     }
@@ -737,6 +790,10 @@ class _SwipePageState extends State<SwipePage> {
     Map<String, dynamic> movie, [
     int horizontalThresholdPercentage = 0,
   ]) {
+    if (movie['id'] == -1) {
+      return _buildLoadingCard();
+    }
+
     Color? overlayColor;
     double opacity = 0.0;
 
@@ -881,6 +938,44 @@ class _SwipePageState extends State<SwipePage> {
     );
   }
 
+  Widget _buildLoadingCard() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading more content...',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   bool _onSwipe(
     int previousIndex,
     int? currentIndex,
@@ -889,6 +984,12 @@ class _SwipePageState extends State<SwipePage> {
     debugPrint(
       'The card $previousIndex was swiped to the ${direction.name}. Now the card $currentIndex is on top',
     );
+
+    // Prevent swiping the loading card
+    if (_movies[previousIndex]['id'] == -1) {
+      return false;
+    }
+
     if (direction == CardSwiperDirection.right) {
       // Handle 'like'
       final movie = _movies[previousIndex];
@@ -1398,7 +1499,21 @@ class _SwipePageState extends State<SwipePage> {
                         onTap: () async {
                           Navigator.pop(context);
                           if (_isMovieMode) {
-                            await SupabaseService.addToWatched(movie, true);
+                            // Fetch details to get runtime
+                            int? runtime;
+                            try {
+                              final details = await _tmdbService
+                                  .getMovieDetails(movie['id']);
+                              runtime = details['runtime'] as int?;
+                            } catch (e) {
+                              print('Error fetching runtime: $e');
+                            }
+
+                            await SupabaseService.addToWatched(
+                              movie,
+                              true,
+                              runtime: runtime,
+                            );
                             await SupabaseService.removeFromWatchlist(
                               movie['id'],
                             );
@@ -1442,40 +1557,15 @@ class _SwipePageState extends State<SwipePage> {
 
     try {
       final details = await _tmdbService.getTVDetails(show['id']);
-      final seasons = details['seasons'] as List<dynamic>;
-
-      // Find the last season (ignoring season 0 if possible, or just taking max season number)
-      // Usually we want the latest season that has episodes.
-      int maxSeason = 0;
-      int maxEpisode = 0;
-
-      for (var season in seasons) {
-        final seasonNum = season['season_number'] as int;
-        final episodeCount = season['episode_count'] as int;
-
-        if (seasonNum > 0 && seasonNum >= maxSeason) {
-          maxSeason = seasonNum;
-          maxEpisode = episodeCount;
-        }
-      }
 
       if (!mounted) return;
       Navigator.pop(context); // Pop loading
 
-      if (maxSeason > 0 && maxEpisode > 0) {
-        await SupabaseService.addToWatched(
-          show,
-          false,
-          watchedSeason: maxSeason,
-          watchedEpisode: maxEpisode,
-        );
-        await SupabaseService.removeFromWatchlist(show['id']);
+      await SupabaseService.markSeriesAsWatched(show, details);
+      await SupabaseService.removeFromWatchlist(show['id']);
 
-        if (mounted) {
-          if (mounted) {
-            Toast.show(context, 'Marked ${show['name']} as fully watched');
-          }
-        }
+      if (mounted) {
+        Toast.show(context, 'Marked ${show['name']} as fully watched');
       }
     } catch (e) {
       print('Error marking all as watched: $e');

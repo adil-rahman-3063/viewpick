@@ -5,6 +5,7 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
 import '../widget/toast.dart';
+import 'actors.dart';
 
 class MoviePage extends StatefulWidget {
   final int movieId;
@@ -23,6 +24,7 @@ class _MoviePageState extends State<MoviePage> {
   List<dynamic>? _cast;
   List<dynamic>? _crew;
   bool _isInWatchlist = false;
+  bool _isWatched = false;
   bool _isLiked = false;
   YoutubePlayerController? _youtubeController;
 
@@ -65,6 +67,7 @@ class _MoviePageState extends State<MoviePage> {
       }
 
       final inWatchlist = await SupabaseService.isInWatchlist(widget.movieId);
+      final isWatched = await SupabaseService.isWatched(widget.movieId);
 
       String? trailerId;
       final trailer = videos.firstWhere(
@@ -92,6 +95,7 @@ class _MoviePageState extends State<MoviePage> {
           _cast = credits?['cast'];
           _crew = credits?['crew'];
           _isInWatchlist = inWatchlist;
+          _isWatched = isWatched;
           _isLoading = false;
         });
       }
@@ -101,20 +105,38 @@ class _MoviePageState extends State<MoviePage> {
     }
   }
 
-  Future<void> _toggleWatchlist() async {
+  Future<void> _handleMainAction() async {
     if (_movieDetails == null) return;
 
     try {
-      if (_isInWatchlist) {
-        // If in watchlist, "Mark Watched" logic
-        await SupabaseService.addToWatched(_movieDetails!, true);
+      final runtime = _movieDetails!['runtime'] as int?;
+
+      if (_isWatched) {
+        // Remove from watched
+        await SupabaseService.removeFromWatched(
+          widget.movieId,
+          isMovie: true,
+          runtime: runtime,
+        );
+        setState(() => _isWatched = false);
+        Toast.show(context, 'Removed from watched');
+      } else if (_isInWatchlist) {
+        // Mark as watched
+        await SupabaseService.addToWatched(
+          _movieDetails!,
+          true,
+          runtime: runtime,
+        );
         await SupabaseService.removeFromWatchlist(widget.movieId);
 
-        setState(() => _isInWatchlist = false);
+        setState(() {
+          _isInWatchlist = false;
+          _isWatched = true;
+        });
 
         Toast.show(context, 'Marked as watched');
       } else {
-        // If not in watchlist, "Add to Watchlist" logic
+        // Add to watchlist
         await SupabaseService.addToWatchlist(_movieDetails!, true);
         setState(() => _isInWatchlist = true);
 
@@ -298,12 +320,17 @@ class _MoviePageState extends State<MoviePage> {
                     children: [
                       Expanded(
                         child: _buildFrostedButton(
-                          icon: _isInWatchlist
-                              ? Icons.check_circle_outline
-                              : Icons.add,
-                          label: _isInWatchlist ? 'Mark Watched' : 'Watchlist',
-                          onTap: _toggleWatchlist,
-                          isActive: _isInWatchlist,
+                          icon: _isWatched
+                              ? Icons.check_circle
+                              : (_isInWatchlist
+                                    ? Icons.check_circle_outline
+                                    : Icons.add),
+                          label: _isWatched
+                              ? 'Remove Watched'
+                              : (_isInWatchlist ? 'Mark Watched' : 'Watchlist'),
+                          onTap: _handleMainAction,
+                          isActive: _isInWatchlist || _isWatched,
+                          activeColor: _isWatched ? Colors.green : null,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -450,61 +477,73 @@ class _MoviePageState extends State<MoviePage> {
                         itemBuilder: (context, index) {
                           final actor = _cast![index];
                           final profilePath = actor['profile_path'];
-                          return Container(
-                            width: 100,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: Container(
-                                    width: 80,
-                                    height: 80,
-                                    color: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    child: profilePath != null
-                                        ? Image.network(
-                                            'https://image.tmdb.org/t/p/w200$profilePath',
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Icon(
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      ActorsPage(personId: actor['id']),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 100,
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Column(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(50),
+                                    child: Container(
+                                      width: 80,
+                                      height: 80,
+                                      color: theme
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      child: profilePath != null
+                                          ? Image.network(
+                                              'https://image.tmdb.org/t/p/w200$profilePath',
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.person,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            )
+                                          : Icon(
                                               Icons.person,
                                               color: theme
                                                   .colorScheme
                                                   .onSurfaceVariant,
                                             ),
-                                          )
-                                        : Icon(
-                                            Icons.person,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  actor['name'],
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurface,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    actor['name'],
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  actor['character'] ?? '',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                    fontSize: 10,
+                                  Text(
+                                    actor['character'] ?? '',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 10,
+                                    ),
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           );
                         },

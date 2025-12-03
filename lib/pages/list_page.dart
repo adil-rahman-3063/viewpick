@@ -304,9 +304,13 @@ class _ListPageState extends State<ListPage> {
         } else {
           // Mark as watched
           if (item['is_movie'] == true) {
+            final details = item['details'] as Map<String, dynamic>?;
+            final runtime = details?['runtime'] as int?;
+
             await SupabaseService.addToWatched(
               item['details'] ?? item['raw_item'],
               true,
+              runtime: runtime,
             );
             await SupabaseService.removeFromWatchlist(item['id']);
 
@@ -317,10 +321,22 @@ class _ListPageState extends State<ListPage> {
             final nextEpisode = item['next_episode'];
 
             if (nextSeason != null && nextEpisode != null) {
+              // Calculate runtime for one episode
+              final details = item['details'] as Map<String, dynamic>?;
+              int avgRuntime = 45;
+              if (details != null) {
+                final runtimes = details['episode_run_time'] as List<dynamic>?;
+                if (runtimes != null && runtimes.isNotEmpty) {
+                  final sum = runtimes.fold<int>(0, (p, c) => p + (c as int));
+                  avgRuntime = (sum / runtimes.length).round();
+                }
+              }
+
               await SupabaseService.updateWatchedProgress(
                 item['id'],
                 nextSeason,
                 nextEpisode,
+                runtimeAdded: avgRuntime,
               );
 
               _fetchWatchlist();

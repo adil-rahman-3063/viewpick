@@ -310,6 +310,7 @@ class SupabaseService {
     int? rating,
     int? watchedSeason,
     int? watchedEpisode,
+    int? runtime,
   }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
@@ -328,12 +329,20 @@ class SupabaseService {
         'watched_season': watchedSeason,
         'watched_episode': watchedEpisode,
       }, onConflict: 'user_id, item_id');
+
+      if (runtime != null) {
+        await _updateWatchStats(runtime, isMovie, true);
+      }
     } catch (e) {
       print('Error adding to watched: $e');
     }
   }
 
-  static Future<void> removeFromWatched(int itemId) async {
+  static Future<void> removeFromWatched(
+    int itemId, {
+    bool isMovie = true,
+    int? runtime,
+  }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -343,6 +352,10 @@ class SupabaseService {
           .delete()
           .eq('user_id', userId)
           .eq('item_id', itemId);
+
+      if (runtime != null) {
+        await _updateWatchStats(runtime, isMovie, false);
+      }
     } catch (e) {
       print('Error removing from watched: $e');
     }
@@ -411,8 +424,9 @@ class SupabaseService {
   static Future<void> updateWatchedProgress(
     int itemId,
     int season,
-    int episode,
-  ) async {
+    int episode, {
+    int? runtimeAdded,
+  }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -426,6 +440,10 @@ class SupabaseService {
           })
           .eq('user_id', userId)
           .eq('item_id', itemId);
+
+      if (runtimeAdded != null) {
+        await _updateWatchStats(runtimeAdded, false, true);
+      }
     } catch (e) {
       print('Error updating watched progress: $e');
     }
@@ -434,8 +452,9 @@ class SupabaseService {
   // Helper to mark an entire series as watched
   static Future<void> markSeriesAsWatched(
     Map<String, dynamic> show,
-    Map<String, dynamic> details,
-  ) async {
+    Map<String, dynamic> details, {
+    int? totalRuntime,
+  }) async {
     try {
       final seasons = details['seasons'] as List<dynamic>;
 
@@ -453,18 +472,64 @@ class SupabaseService {
         }
       }
 
+      // Calculate runtime if not provided
+      if (totalRuntime == null) {
+        final runtimes = details['episode_run_time'] as List<dynamic>?;
+        int avgRuntime = 45; // Default fallback
+        if (runtimes != null && runtimes.isNotEmpty) {
+          final sum = runtimes.fold<int>(0, (p, c) => p + (c as int));
+          avgRuntime = (sum / runtimes.length).round();
+        }
+
+        int totalEpisodes = 0;
+        for (var season in seasons) {
+          final seasonNum = season['season_number'] as int;
+          final episodeCount = season['episode_count'] as int;
+
+          if (seasonNum > 0 && seasonNum <= maxSeason) {
+            totalEpisodes += episodeCount;
+          }
+        }
+        totalRuntime = totalEpisodes * avgRuntime;
+      }
+
       if (maxSeason > 0 && maxEpisode > 0) {
         await addToWatched(
           show,
           false,
           watchedSeason: maxSeason,
           watchedEpisode: maxEpisode,
+          runtime: totalRuntime,
         );
       }
     } catch (e) {
       print('Error marking series as watched: $e');
       rethrow;
     }
+  }
+
+  static Future<void> _updateWatchStats(
+    int minutes,
+    bool isMovie,
+    bool add,
+  ) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final metadata = user.userMetadata ?? {};
+    final key = isMovie ? 'total_movie_minutes' : 'total_series_minutes';
+    int current = metadata[key] ?? 0;
+
+    if (add) {
+      current += minutes;
+    } else {
+      current -= minutes;
+      if (current < 0) current = 0;
+    }
+
+    await supabase.auth.updateUser(
+      UserAttributes(data: {...metadata, key: current}),
+    );
   }
 
   // Dislike methods
@@ -510,4 +575,28 @@ class SupabaseService {
   // 1. Adding a user_preferences table or extending auth.users metadata
   // 2. Storing language preference and using it in TMDB queries
   // Currently, all movies are filtered by language=en-US via the proxy server
+  // Get all IDs from watchlist and watched to exclude from recommendations
+  static Future<Set<int>> getExcludedIds() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return {};
+
+    try {
+      final responses = await Future.wait([
+        supabase.from('watchlist').select('item_id').eq('user_id', userId),
+        supabase.from('watched').select('item_id').eq('user_id', userId),
+      ]);
+
+      final watchlistIds = (responses[0] as List)
+          .map((e) => e['item_id'] as int)
+          .toSet();
+      final watchedIds = (responses[1] as List)
+          .map((e) => e['item_id'] as int)
+          .toSet();
+
+      return {...watchlistIds, ...watchedIds};
+    } catch (e) {
+      print('Error fetching excluded IDs: $e');
+      return {};
+    }
+  }
 }

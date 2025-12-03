@@ -111,21 +111,40 @@ class _HomeTabState extends State<HomeTab> {
     setState(() => _isLoading = true);
 
     try {
+      // Helper to get language (User pref for movies, Random+English bias for series)
+      String getFetchLanguage() {
+        if (widget.isMovieMode) {
+          return SupabaseService.getUserLanguage();
+        } else {
+          final allLangs = List<String>.from(
+            SupabaseService.supportedLanguageCodes,
+          );
+          allLangs.addAll(['en-US', 'en-US', 'en-US']);
+          return allLangs[Random().nextInt(allLangs.length)];
+        }
+      }
+
       // Fetch all sections
-      // "You May Like" uses user's preferred languages
-      // Other sections use random language from preferences
-      final allSections = await Future.wait([
+      final results = await Future.wait([
         _fetchYouMayLike(),
-        _fetchNewlyReleased(SupabaseService.getUserLanguage()),
+        _fetchNewlyReleased(getFetchLanguage()),
         _fetchWatchlist(),
-        _fetchTrending(SupabaseService.getUserLanguage()),
+        _fetchTrending(getFetchLanguage()),
+        SupabaseService.getExcludedIds(),
       ]);
 
+      final excludedIds = results[4] as Set<int>;
+
+      // Helper to filter list
+      List<Map<String, dynamic>> filter(List<Map<String, dynamic>> list) {
+        return list.where((item) => !excludedIds.contains(item['id'])).toList();
+      }
+
       setState(() {
-        _youMayLike = allSections[0];
-        _newlyReleased = allSections[1];
-        _watchlist = allSections[2];
-        _trending = allSections[3];
+        _youMayLike = filter(results[0] as List<Map<String, dynamic>>);
+        _newlyReleased = filter(results[1] as List<Map<String, dynamic>>);
+        _watchlist = results[2] as List<Map<String, dynamic>>;
+        _trending = filter(results[3] as List<Map<String, dynamic>>);
         _isLoading = false;
       });
     } catch (e) {
@@ -160,16 +179,24 @@ class _HomeTabState extends State<HomeTab> {
       }
 
       // 4. Determine Languages to fetch from
-      // If no user languages, default to English
-      // If multiple, take up to 3 random ones to mix content
       List<String> targetLanguages = [];
-      if (userLanguages.isEmpty) {
-        targetLanguages = ['en-US'];
-      } else {
-        targetLanguages = List.from(userLanguages)..shuffle();
-        if (targetLanguages.length > 3) {
-          targetLanguages = targetLanguages.take(3).toList();
+      if (widget.isMovieMode) {
+        if (userLanguages.isEmpty) {
+          targetLanguages = ['en-US'];
+        } else {
+          targetLanguages = List.from(userLanguages)..shuffle();
+          if (targetLanguages.length > 3) {
+            targetLanguages = targetLanguages.take(3).toList();
+          }
         }
+      } else {
+        // Series mode: Random languages with English bias
+        final allLangs = List<String>.from(
+          SupabaseService.supportedLanguageCodes,
+        );
+        allLangs.addAll(['en-US', 'en-US', 'en-US']);
+        allLangs.shuffle();
+        targetLanguages = allLangs.take(3).toList();
       }
 
       List<dynamic> allRawItems = [];

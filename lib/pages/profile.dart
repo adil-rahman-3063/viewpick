@@ -67,8 +67,17 @@ class _ProfilePageState extends State<ProfilePage> {
       _watchedMovies = watchedMoviesList.length;
       _watchedSeries = watchedSeriesList.length;
 
-      // Calculate stats in background to not block UI
-      _calculateStats(watchedMoviesList, watchedSeriesList);
+      // Check for cached stats
+      final movieMins = user?.userMetadata?['total_movie_minutes'];
+      final seriesMins = user?.userMetadata?['total_series_minutes'];
+
+      if (movieMins != null && seriesMins != null) {
+        _totalMovieTime = Duration(minutes: movieMins as int);
+        _totalSeriesTime = Duration(minutes: seriesMins as int);
+      } else {
+        // Calculate stats in background and save them
+        _calculateAndSaveStats(watchedMoviesList, watchedSeriesList);
+      }
     } catch (e) {
       print('Error fetching profile data: $e');
       if (mounted) {
@@ -81,7 +90,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _calculateStats(
+  Future<void> _calculateAndSaveStats(
     List<Map<String, dynamic>> movies,
     List<Map<String, dynamic>> series,
   ) async {
@@ -142,6 +151,16 @@ class _ProfilePageState extends State<ProfilePage> {
         _totalMovieTime = Duration(minutes: totalMovieMinutes);
         _totalSeriesTime = Duration(minutes: totalSeriesMinutes);
       });
+    }
+
+    // Save to Supabase metadata for future fast loading
+    try {
+      await SupabaseService.updateUserMetadata({
+        'total_movie_minutes': totalMovieMinutes,
+        'total_series_minutes': totalSeriesMinutes,
+      });
+    } catch (e) {
+      print('Error saving stats to metadata: $e');
     }
   }
 

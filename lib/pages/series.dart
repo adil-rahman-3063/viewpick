@@ -5,6 +5,8 @@ import '../services/tmdb_service.dart';
 import '../services/supabase_service.dart';
 import '../widget/toast.dart';
 
+import 'actors.dart';
+
 class SeriesPage extends StatefulWidget {
   final int tvId;
 
@@ -22,6 +24,7 @@ class _SeriesPageState extends State<SeriesPage> {
   List<dynamic>? _cast;
   List<dynamic>? _crew;
   bool _isInWatchlist = false;
+  bool _isWatched = false;
   bool _isLiked = false;
 
   // New state for watched progress
@@ -71,6 +74,7 @@ class _SeriesPageState extends State<SeriesPage> {
       }
 
       final inWatchlist = await SupabaseService.isInWatchlist(widget.tvId);
+      final isWatched = await SupabaseService.isWatched(widget.tvId);
 
       // Fetch watched status
       final watchedItem = await SupabaseService.getWatchedItem(widget.tvId);
@@ -108,6 +112,7 @@ class _SeriesPageState extends State<SeriesPage> {
           _cast = credits?['cast'];
           _crew = credits?['crew'];
           _isInWatchlist = inWatchlist;
+          _isWatched = isWatched;
           _watchedSeason = wSeason;
           _watchedEpisode = wEpisode;
           _isLoading = false;
@@ -137,16 +142,30 @@ class _SeriesPageState extends State<SeriesPage> {
     }
   }
 
-  Future<void> _toggleWatchlist() async {
+  Future<void> _handleMainAction() async {
     if (_tvDetails == null) return;
 
     try {
-      if (_isInWatchlist) {
+      if (_isWatched) {
+        // Remove from watched
+        final runtime = _calculateRuntimeFor(_watchedSeason, _watchedEpisode);
+        await SupabaseService.removeFromWatched(
+          widget.tvId,
+          isMovie: false,
+          runtime: runtime,
+        );
+        setState(() => _isWatched = false);
+        Toast.show(context, 'Removed from watched');
+      } else if (_isInWatchlist) {
         // If in watchlist, "Mark Watched" logic (Mark entire series)
+        // SupabaseService.markSeriesAsWatched calculates runtime internally if not provided
         await SupabaseService.markSeriesAsWatched(_tvDetails!, _tvDetails!);
         await SupabaseService.removeFromWatchlist(widget.tvId);
 
-        setState(() => _isInWatchlist = false);
+        setState(() {
+          _isInWatchlist = false;
+          _isWatched = true;
+        });
 
         Toast.show(context, 'Marked series as watched');
       } else {
@@ -159,6 +178,33 @@ class _SeriesPageState extends State<SeriesPage> {
     } catch (e) {
       Toast.show(context, 'Error: $e', isError: true);
     }
+  }
+
+  int _calculateRuntimeFor(int? season, int? episode) {
+    if (_tvDetails == null || season == null || episode == null) return 0;
+
+    final seasons = _tvDetails!['seasons'] as List<dynamic>;
+    final runtimes = _tvDetails!['episode_run_time'] as List<dynamic>?;
+
+    int avgRuntime = 45;
+    if (runtimes != null && runtimes.isNotEmpty) {
+      final sum = runtimes.fold<int>(0, (p, c) => p + (c as int));
+      avgRuntime = (sum / runtimes.length).round();
+    }
+
+    int totalEpisodes = 0;
+    for (var s in seasons) {
+      final sNum = s['season_number'] as int;
+      final epCount = s['episode_count'] as int;
+
+      if (sNum < season && sNum > 0) {
+        totalEpisodes += epCount;
+      } else if (sNum == season) {
+        totalEpisodes += episode;
+      }
+    }
+
+    return totalEpisodes * avgRuntime;
   }
 
   Future<void> _toggleLike() async {
@@ -182,6 +228,11 @@ class _SeriesPageState extends State<SeriesPage> {
     final oldSeason = _watchedSeason;
     final oldEpisode = _watchedEpisode;
 
+    // Calculate runtime difference
+    final oldRuntime = _calculateRuntimeFor(oldSeason, oldEpisode);
+    final newRuntime = _calculateRuntimeFor(seasonNumber, episodeNumber);
+    final diff = newRuntime - oldRuntime;
+
     // Optimistic update
     setState(() {
       _watchedSeason = seasonNumber;
@@ -197,12 +248,15 @@ class _SeriesPageState extends State<SeriesPage> {
           false,
           watchedSeason: seasonNumber,
           watchedEpisode: episodeNumber,
+          runtime: diff > 0 ? diff : null,
         );
+        setState(() => _isWatched = true);
       } else {
         await SupabaseService.updateWatchedProgress(
           widget.tvId,
           seasonNumber,
           episodeNumber,
+          runtimeAdded: diff > 0 ? diff : null,
         );
       }
     } catch (e) {
@@ -382,11 +436,17 @@ class _SeriesPageState extends State<SeriesPage> {
                     children: [
                       Expanded(
                         child: _buildFrostedButton(
-                          icon: _isInWatchlist
-                              ? Icons.check_circle_outline
-                              : Icons.add,
-                          label: _isInWatchlist ? 'Mark Watched' : 'Watchlist',
-                          onTap: _toggleWatchlist,
+                          icon: _isWatched
+                              ? Icons.check_circle
+                              : (_isInWatchlist
+                                    ? Icons.check_circle_outline
+                                    : Icons.add),
+                          label: _isWatched
+                              ? 'Remove Watched'
+                              : (_isInWatchlist ? 'Mark Watched' : 'Watchlist'),
+                          onTap: _handleMainAction,
+                          isActive: _isInWatchlist || _isWatched,
+                          activeColor: _isWatched ? Colors.green : null,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -532,61 +592,73 @@ class _SeriesPageState extends State<SeriesPage> {
                         itemBuilder: (context, index) {
                           final actor = _cast![index];
                           final profilePath = actor['profile_path'];
-                          return Container(
-                            width: 100,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: Container(
-                                    width: 80,
-                                    height: 80,
-                                    color: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    child: profilePath != null
-                                        ? Image.network(
-                                            'https://image.tmdb.org/t/p/w200$profilePath',
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Icon(
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      ActorsPage(personId: actor['id']),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 100,
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Column(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(50),
+                                    child: Container(
+                                      width: 80,
+                                      height: 80,
+                                      color: theme
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      child: profilePath != null
+                                          ? Image.network(
+                                              'https://image.tmdb.org/t/p/w200$profilePath',
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.person,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            )
+                                          : Icon(
                                               Icons.person,
                                               color: theme
                                                   .colorScheme
                                                   .onSurfaceVariant,
                                             ),
-                                          )
-                                        : Icon(
-                                            Icons.person,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  actor['name'],
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurface,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    actor['name'],
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  actor['character'] ?? '',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                    fontSize: 10,
+                                  Text(
+                                    actor['character'] ?? '',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 10,
+                                    ),
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -685,144 +757,157 @@ class _SeriesPageState extends State<SeriesPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...seasons.map((season) {
-                    final seasonNum = season['season_number'];
-                    final episodeCount = season['episode_count'];
-                    final episodes = _seasonEpisodes[seasonNum];
+                  ...seasons
+                      .where((season) {
+                        final seasonNum = season['season_number'];
+                        final name = season['name'].toString();
+                        return seasonNum != 0 && !name.contains('Special');
+                      })
+                      .map((season) {
+                        final seasonNum = season['season_number'];
+                        final episodeCount = season['episode_count'];
+                        final episodes = _seasonEpisodes[seasonNum];
 
-                    return Card(
-                      color: theme.colorScheme.surfaceContainerHighest
-                          .withOpacity(0.3),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: theme.colorScheme.outline.withOpacity(0.2),
-                        ),
-                      ),
-                      child: ExpansionTile(
-                        title: Text(
-                          season['name'],
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
+                        return Card(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(0.3),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: theme.colorScheme.outline.withOpacity(0.2),
+                            ),
                           ),
-                        ),
-                        subtitle: Text(
-                          '$episodeCount Episodes',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        iconColor: theme.colorScheme.onSurface,
-                        collapsedIconColor: theme.colorScheme.onSurfaceVariant,
-                        onExpansionChanged: (expanded) {
-                          if (expanded) {
-                            _fetchSeasonDetails(seasonNum);
-                          }
-                        },
-                        children: [
-                          if (episodes == null)
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: theme.colorScheme.primary,
-                                ),
+                          child: ExpansionTile(
+                            title: Text(
+                              season['name'],
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.bold,
                               ),
-                            )
-                          else
-                            ...episodes.map<Widget>((episode) {
-                              final epNum = episode['episode_number'];
-                              final isWatched = _isEpisodeWatched(
-                                seasonNum,
-                                epNum,
-                              );
+                            ),
+                            subtitle: Text(
+                              '$episodeCount Episodes',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            iconColor: theme.colorScheme.onSurface,
+                            collapsedIconColor:
+                                theme.colorScheme.onSurfaceVariant,
+                            onExpansionChanged: (expanded) {
+                              if (expanded) {
+                                _fetchSeasonDetails(seasonNum);
+                              }
+                            },
+                            children: [
+                              if (episodes == null)
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...episodes.map<Widget>((episode) {
+                                  final epNum = episode['episode_number'];
+                                  final isWatched = _isEpisodeWatched(
+                                    seasonNum,
+                                    epNum,
+                                  );
 
-                              return Dismissible(
-                                key: Key('S${seasonNum}E$epNum'),
-                                background: Container(
-                                  color: theme.colorScheme.primaryContainer,
-                                  alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.only(left: 20),
-                                  child: Icon(
-                                    Icons.check,
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                  ),
-                                ),
-                                secondaryBackground: Container(
-                                  color: theme.colorScheme.errorContainer,
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 20),
-                                  child: Icon(
-                                    Icons.close,
-                                    color: theme.colorScheme.onErrorContainer,
-                                  ),
-                                ),
-                                confirmDismiss: (direction) async {
-                                  if (direction ==
-                                      DismissDirection.startToEnd) {
-                                    // Mark as watched (and previous)
-                                    await _updateProgress(seasonNum, epNum);
-                                    return false; // Don't dismiss the tile
-                                  } else {
-                                    // Swipe left - maybe unmark?
-                                    // For now, let's just treat it as unmark current?
-                                    // Or maybe just do nothing for now as per plan
-                                    return false;
-                                  }
-                                },
-                                child: ListTile(
-                                  title: Text(
-                                    '${episode['episode_number']}. ${episode['name']}',
-                                    style: TextStyle(
-                                      color: isWatched
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurface,
-                                      fontWeight: isWatched
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                  return Dismissible(
+                                    key: Key('S${seasonNum}E$epNum'),
+                                    background: Container(
+                                      color: theme.colorScheme.primaryContainer,
+                                      alignment: Alignment.centerLeft,
+                                      padding: const EdgeInsets.only(left: 20),
+                                      child: Icon(
+                                        Icons.check,
+                                        color: theme
+                                            .colorScheme
+                                            .onPrimaryContainer,
+                                      ),
                                     ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (episode['overview'] != null &&
-                                          episode['overview'].isNotEmpty)
-                                        Text(
-                                          episode['overview'],
-                                          style: TextStyle(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant
-                                                .withOpacity(0.7),
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                    secondaryBackground: Container(
+                                      color: theme.colorScheme.errorContainer,
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      child: Icon(
+                                        Icons.close,
+                                        color:
+                                            theme.colorScheme.onErrorContainer,
+                                      ),
+                                    ),
+                                    confirmDismiss: (direction) async {
+                                      if (direction ==
+                                          DismissDirection.startToEnd) {
+                                        // Mark as watched (and previous)
+                                        await _updateProgress(seasonNum, epNum);
+                                        return false; // Don't dismiss the tile
+                                      } else {
+                                        // Swipe left - maybe unmark?
+                                        // For now, let's just treat it as unmark current?
+                                        // Or maybe just do nothing for now as per plan
+                                        return false;
+                                      }
+                                    },
+                                    child: ListTile(
+                                      title: Text(
+                                        '${episode['episode_number']}. ${episode['name']}',
+                                        style: TextStyle(
+                                          color: isWatched
+                                              ? theme.colorScheme.primary
+                                              : theme.colorScheme.onSurface,
+                                          fontWeight: isWatched
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
                                         ),
-                                    ],
-                                  ),
-                                  trailing: IconButton(
-                                    icon: Icon(
-                                      isWatched
-                                          ? Icons.check_circle
-                                          : Icons.radio_button_unchecked,
-                                      color: isWatched
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (episode['overview'] != null &&
+                                              episode['overview'].isNotEmpty)
+                                            Text(
+                                              episode['overview'],
+                                              style: TextStyle(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant
+                                                    .withOpacity(0.7),
+                                                fontSize: 12,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                        ],
+                                      ),
+                                      trailing: IconButton(
+                                        icon: Icon(
+                                          isWatched
+                                              ? Icons.check_circle
+                                              : Icons.radio_button_unchecked,
+                                          color: isWatched
+                                              ? theme.colorScheme.primary
+                                              : theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                        ),
+                                        onPressed: () =>
+                                            _updateProgress(seasonNum, epNum),
+                                      ),
                                     ),
-                                    onPressed: () =>
-                                        _updateProgress(seasonNum, epNum),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                                  );
+                                }).toList(),
+                            ],
+                          ),
+                        );
+                      })
+                      .toList(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -838,8 +923,10 @@ class _SeriesPageState extends State<SeriesPage> {
     required String label,
     required VoidCallback onTap,
     bool isActive = false,
-    Color activeColor = Colors.white,
+    Color? activeColor,
   }) {
+    final effectiveActiveColor =
+        activeColor ?? Theme.of(context).colorScheme.primary;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: BackdropFilter(
@@ -872,7 +959,7 @@ class _SeriesPageState extends State<SeriesPage> {
                     Icon(
                       icon,
                       color: isActive
-                          ? activeColor
+                          ? effectiveActiveColor
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                     const SizedBox(width: 8),
