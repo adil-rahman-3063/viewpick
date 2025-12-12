@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:math';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -7,10 +10,41 @@ class TMDBService {
   final String _apiKey =
       dotenv.env['TMDB_API_KEY'] ?? 'a92961c9d1ffb10b5688204638171d0d';
 
-  Future<http.Response> _get(String url, {int retries = 3}) async {
-    print('TMDBService: Requesting $url');
+  String? _resolvedIp;
 
-    // Append API key
+  Future<void> _resolveTmdbIp() async {
+    if (_resolvedIp != null) return;
+
+    try {
+      // Use Google DoH
+      final response = await http.get(
+        Uri.parse('https://dns.google/resolve?name=api.themoviedb.org&type=A'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final answers = data['Answer'] as List<dynamic>?;
+
+        if (answers != null) {
+          final ips = answers
+              .where((a) => a['type'] == 1)
+              .map((a) => a['data'] as String)
+              .toList();
+
+          if (ips.isNotEmpty) {
+            _resolvedIp = ips[Random().nextInt(ips.length)];
+            // print('Resolved TMDB IP via DoH: $_resolvedIp');
+          }
+        }
+      }
+    } catch (e) {
+      // print('DoH resolution failed: $e');
+    }
+  }
+
+  Future<http.Response> _get(String url, {int retries = 3}) async {
+    // print('TMDBService: Requesting $url');
+
     final uri = Uri.parse(url);
     final newUri = uri.replace(
       queryParameters: {...uri.queryParameters, 'api_key': _apiKey},
@@ -19,36 +53,162 @@ class TMDBService {
     int attempt = 0;
     while (attempt < retries) {
       try {
-        final response = await http
-            .get(newUri)
-            .timeout(const Duration(seconds: 60));
+        await _resolveTmdbIp();
+
+        http.Response response;
+        if (_resolvedIp != null) {
+          // Use manual secure socket connection to fix SNI issues
+          response = await _rawSecureRequest(newUri, _resolvedIp!);
+        } else {
+          // Fallback to standard http
+          response = await http
+              .get(newUri)
+              .timeout(const Duration(seconds: 60));
+        }
 
         if (response.statusCode == 200) {
           return response;
         } else if (response.statusCode == 429) {
-          // Rate limit hit, wait and retry
-          print('TMDBService: Rate limit hit, waiting...');
+          // print('TMDBService: Rate limit hit, waiting...');
           await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
         } else {
-          print('TMDBService: Response status: ${response.statusCode}');
-          print('TMDBService: Response body: ${response.body}');
-          print('TMDBService: Request failed for $url');
-          // Don't retry on 4xx errors other than 429
+          // print('TMDBService: Response status: ${response.statusCode}');
+          // print('TMDBService: Request failed for $url');
           if (response.statusCode >= 400 && response.statusCode < 500) {
             return response;
           }
         }
       } catch (e) {
-        print(
-          'TMDBService: Error making request (Attempt ${attempt + 1}/$retries): $e',
-        );
+        // print('TMDBService: Error (Attempt ${attempt + 1}): $e');
+        // Force re-resolution on error
+        _resolvedIp = null;
         if (attempt == retries - 1) rethrow;
-        // Wait before retrying
         await Future.delayed(Duration(seconds: 1 * (attempt + 1)));
       }
       attempt++;
     }
     throw Exception('Failed to request $url after $retries attempts');
+  }
+
+  Future<http.Response> _rawSecureRequest(Uri uri, String ip) async {
+    try {
+      // 1. Connect to the IP directly
+      final socket = await Socket.connect(
+        ip,
+        443,
+        timeout: const Duration(seconds: 10),
+      );
+
+      // 2. Upgrade to TLS, passing the HOSTNAME for correct SNI
+      final secureSocket = await SecureSocket.secure(
+        socket,
+        host: 'api.themoviedb.org',
+        supportedProtocols: ['http/1.1'],
+      );
+
+      // 3. Send HTTP Request
+      final path = uri.path + (uri.hasQuery ? '?${uri.query}' : '');
+      final request = StringBuffer();
+      request.write('GET $path HTTP/1.1\r\n');
+      request.write('Host: api.themoviedb.org\r\n');
+      request.write('Connection: close\r\n');
+      request.write('User-Agent: ViewPick/1.0\r\n');
+      request.write('\r\n');
+
+      secureSocket.write(request.toString());
+      await secureSocket.flush();
+
+      // 4. Read Response
+      final responseBuffer = StringBuffer();
+      final completer = Completer<void>();
+
+      final subscription = secureSocket
+          .map((event) => utf8.decode(event))
+          .listen(
+            (data) {
+              responseBuffer.write(data);
+            },
+            onError: (e) {
+              // Suppress stream errors since we might be closing
+              if (!completer.isCompleted) completer.complete();
+            },
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+            cancelOnError: true,
+          );
+
+      await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          // Ensure we don't hang forever
+        },
+      );
+
+      await subscription.cancel();
+      secureSocket.destroy(); // Ensure socket is closed/destroyed
+
+      final rawResponse = responseBuffer.toString();
+      if (rawResponse.isEmpty) throw Exception('Empty response from TMDB');
+
+      // 5. Parse Response (Headers vs Body)
+      final parts = rawResponse.split('\r\n\r\n');
+      if (parts.length < 2) throw Exception('Invalid HTTP response format');
+
+      final headerPart = parts[0];
+      final bodyPart = parts
+          .sublist(1)
+          .join('\r\n\r\n'); // Reconstruct body if it contained double newlines
+
+      final headerLines = headerPart.split('\r\n');
+      final statusLine = headerLines[0];
+      final statusCode = int.tryParse(statusLine.split(' ')[1]) ?? 0;
+
+      final headers = <String, String>{};
+      for (var i = 1; i < headerLines.length; i++) {
+        final line = headerLines[i];
+        final separator = line.indexOf(':');
+        if (separator > 0) {
+          headers[line.substring(0, separator).trim().toLowerCase()] = line
+              .substring(separator + 1)
+              .trim();
+        }
+      }
+
+      String decodedBody = bodyPart;
+      if (headers['transfer-encoding'] == 'chunked') {
+        decodedBody = _parseChunkedBody(bodyPart);
+      }
+
+      return http.Response(decodedBody, statusCode, headers: headers);
+    } catch (e) {
+      // print('Raw secure request failed: $e');
+      rethrow;
+    }
+  }
+
+  String _parseChunkedBody(String raw) {
+    // Basic chunked parser
+    final buffer = StringBuffer();
+    int index = 0;
+    while (index < raw.length) {
+      final nextNewline = raw.indexOf('\r\n', index);
+      if (nextNewline == -1) break;
+
+      final sizeStr = raw.substring(index, nextNewline);
+      final chunkSize = int.tryParse(sizeStr, radix: 16);
+
+      if (chunkSize == null) break;
+      if (chunkSize == 0) break; // End of stream
+
+      final start = nextNewline + 2;
+      final end = start + chunkSize;
+      if (end > raw.length) break;
+
+      buffer.write(raw.substring(start, end));
+      index = end + 2; // Skip trailing \r\n of the chunk
+    }
+    return buffer.toString();
   }
 
   Future<List<dynamic>> getPopularMovies({
@@ -446,6 +606,21 @@ class TMDBService {
       return json.decode(response.body)['results'];
     } else {
       throw Exception('Failed to discover movies');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCollectionDetails(
+    int collectionId, {
+    String language = 'en-US',
+  }) async {
+    final response = await _get(
+      '$_baseUrl/collection/$collectionId?language=$language',
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return data;
+    } else {
+      throw Exception('Failed to load collection details');
     }
   }
 

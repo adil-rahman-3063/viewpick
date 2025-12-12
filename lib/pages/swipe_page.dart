@@ -1214,7 +1214,7 @@ class _SwipePageState extends State<SwipePage> {
             ),
             Expanded(
               child: Text(
-                'Which genre?',
+                'Hide a Genre',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
@@ -1226,13 +1226,27 @@ class _SwipePageState extends State<SwipePage> {
             const SizedBox(width: 48), // Balance back button
           ],
         ),
+        const SizedBox(height: 10),
+        Text(
+          'Select a genre to stop seeing recommendations for it.',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 20),
         ...genres.map(
           (genre) => ListTile(
+            leading: Icon(
+              Icons.block,
+              color: Theme.of(context).colorScheme.error,
+            ),
             title: Text(
-              genre,
+              'Hide $genre',
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -1243,7 +1257,7 @@ class _SwipePageState extends State<SwipePage> {
                 details: {'genre': genre},
               );
               Navigator.pop(context);
-              Toast.show(context, 'We\'ll show less $genre');
+              Toast.show(context, 'Hidden $genre from future recommendations');
             },
           ),
         ),
@@ -1255,6 +1269,7 @@ class _SwipePageState extends State<SwipePage> {
     Map<String, dynamic> movie,
     Function(String) onNavigate,
   ) {
+    final language = movie['original_language'] ?? 'en';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1269,7 +1284,7 @@ class _SwipePageState extends State<SwipePage> {
             ),
             Expanded(
               child: Text(
-                'Language Preference',
+                'Hide Language',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
@@ -1283,7 +1298,7 @@ class _SwipePageState extends State<SwipePage> {
         ),
         const SizedBox(height: 20),
         Text(
-          'Show less content in this language?',
+          'Do you want to hide all content in this language ($language)?',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 16,
@@ -1297,38 +1312,29 @@ class _SwipePageState extends State<SwipePage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'No',
+                'Cancel',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 18,
+                  fontSize: 16,
                 ),
               ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
               ),
               onPressed: () {
                 SupabaseService.addDislike(
                   itemId: movie['id'],
                   isMovie: _isMovieMode,
                   reason: 'language',
-                  details: {
-                    'language_code': movie['original_language'] ?? 'en',
-                  },
+                  details: {'language_code': language},
                 );
                 Navigator.pop(context);
-                Toast.show(context, 'We\'ll show less from this language');
+                Toast.show(context, 'Hidden content in $language');
               },
-              child: Text(
-                'Yes',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 18,
-                ),
-              ),
+              child: const Text('Yes, Hide It'),
             ),
           ],
         ),
@@ -1355,7 +1361,7 @@ class _SwipePageState extends State<SwipePage> {
             ),
             Expanded(
               child: Text(
-                'Year Preference',
+                'Hide by Year',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
@@ -1367,10 +1373,30 @@ class _SwipePageState extends State<SwipePage> {
             const SizedBox(width: 48),
           ],
         ),
+        const SizedBox(height: 10),
+        Text(
+          'Filter out content based on release year.',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 20),
         ListTile(
+          leading: Icon(
+            Icons.calendar_today,
+            color: Theme.of(context).colorScheme.error,
+          ),
           title: Text(
-            'Less from $year',
+            'Hide content from $year',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          subtitle: Text(
+            'Only hide items released exactly in $year',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1383,12 +1409,24 @@ class _SwipePageState extends State<SwipePage> {
               details: {'year': year},
             );
             Navigator.pop(context);
-            Toast.show(context, 'We\'ll show less from $year');
+            Toast.show(context, 'Hidden content from $year');
           },
         ),
+        const SizedBox(height: 8),
         ListTile(
+          leading: Icon(
+            Icons.history,
+            color: Theme.of(context).colorScheme.error,
+          ),
           title: Text(
-            'Less before $year',
+            'Hide everything before $year',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          subtitle: Text(
+            'Hide all items released in $year or earlier',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1401,10 +1439,61 @@ class _SwipePageState extends State<SwipePage> {
               details: {'year': year},
             );
             Navigator.pop(context);
-            Toast.show(context, 'We\'ll show less before $year');
+            Toast.show(context, 'Hidden all content older than $year');
           },
         ),
       ],
+    );
+  }
+
+  void _showRateDialog(Map<String, dynamic> item, Function(int rating) onRate) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Did you like it?',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+        ),
+        content: Text(
+          'Would you recommend "${item['name']}" to others?',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: Icon(
+              Icons.thumb_down_rounded,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            label: Text(
+              'No',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              onRate(0);
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.thumb_up_rounded),
+            label: const Text('Yes'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              onRate(1);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1496,39 +1585,47 @@ class _SwipePageState extends State<SwipePage> {
                       child: _buildActionButton(
                         icon: Icons.check_circle_outline,
                         label: _isMovieMode ? 'Watched' : 'Watched All',
-                        onTap: () async {
+                        onTap: () {
                           Navigator.pop(context);
-                          if (_isMovieMode) {
-                            // Fetch details to get runtime
-                            int? runtime;
-                            try {
-                              final details = await _tmdbService
-                                  .getMovieDetails(movie['id']);
-                              runtime = details['runtime'] as int?;
-                            } catch (e) {
-                              print('Error fetching runtime: $e');
+                          _showRateDialog(movie, (rating) async {
+                            // If user liked it, save for recommendations
+                            if (rating == 1) {
+                              await _saveLikedMovie(movie);
                             }
 
-                            await SupabaseService.addToWatched(
-                              movie,
-                              true,
-                              runtime: runtime,
-                            );
-                            await SupabaseService.removeFromWatchlist(
-                              movie['id'],
-                            );
-                            if (mounted) {
-                              if (mounted) {
-                                Toast.show(
-                                  context,
-                                  'Marked ${movie['name']} as Watched',
-                                );
+                            if (_isMovieMode) {
+                              // Fetch details to get runtime
+                              int? runtime;
+                              try {
+                                final details = await _tmdbService
+                                    .getMovieDetails(movie['id']);
+                                runtime = details['runtime'] as int?;
+                              } catch (e) {
+                                print('Error fetching runtime: $e');
                               }
+
+                              await SupabaseService.addToWatched(
+                                movie,
+                                true,
+                                runtime: runtime,
+                                rating: rating,
+                              );
+                              await SupabaseService.removeFromWatchlist(
+                                movie['id'],
+                              );
+                              if (mounted) {
+                                if (mounted) {
+                                  Toast.show(
+                                    context,
+                                    'Marked ${movie['name']} as Watched',
+                                  );
+                                }
+                              }
+                            } else {
+                              // Series: "Watched" button now marks ALL as watched
+                              _markAllWatched(movie, rating);
                             }
-                          } else {
-                            // Series: "Watched" button now marks ALL as watched
-                            _markAllWatched(movie);
-                          }
+                          });
                         },
                       ),
                     ),
@@ -1543,7 +1640,7 @@ class _SwipePageState extends State<SwipePage> {
     );
   }
 
-  Future<void> _markAllWatched(Map<String, dynamic> show) async {
+  Future<void> _markAllWatched(Map<String, dynamic> show, int rating) async {
     // Show loading indicator
     showDialog(
       context: context,
@@ -1561,7 +1658,7 @@ class _SwipePageState extends State<SwipePage> {
       if (!mounted) return;
       Navigator.pop(context); // Pop loading
 
-      await SupabaseService.markSeriesAsWatched(show, details);
+      await SupabaseService.markSeriesAsWatched(show, details, rating: rating);
       await SupabaseService.removeFromWatchlist(show['id']);
 
       if (mounted) {

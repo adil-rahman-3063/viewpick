@@ -203,6 +203,22 @@ class _LoginPageState extends State<LoginPage> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/forgot_password');
+                      },
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,

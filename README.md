@@ -61,6 +61,30 @@ web version - https://adil-rahman-3063.github.io/viewpick_web/
     flutter run
     ```
 
+### 🔒 Authentication & Deep Linking configuration
+
+The application uses Supabase for authentication including email/password login and password resets via deep links.
+
+**Android Setup (`AndroidManifest.xml`):**
+To ensure password reset links work correctly (even when the app is closed), the following Intent Filter is required in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <!-- Specific host for password reset -->
+    <data android:scheme="viewpick" android:host="reset-password" />
+    <!-- Catch-all for robust handling -->
+    <data android:scheme="viewpick" android:host="*" />
+</intent-filter>
+```
+
+**Testing Password Reset:**
+1. Request a reset email from the "Forgot Password" page.
+2. **Important:** For a true "Cold Start" test, close the app completely (swipe away from recent apps) before clicking the link in your email.
+3. The app should launch and automatically navigate to the Password Change screen.
+
 ## 📱 Screenshots
 
 | Swipe Interface | Details Page | Explore |

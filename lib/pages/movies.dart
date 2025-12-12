@@ -23,6 +23,7 @@ class _MoviePageState extends State<MoviePage> {
   Map<String, dynamic>? _providers;
   List<dynamic>? _cast;
   List<dynamic>? _crew;
+  List<dynamic>? _collectionMovies;
   bool _isInWatchlist = false;
   bool _isWatched = false;
   bool _isLiked = false;
@@ -66,8 +67,29 @@ class _MoviePageState extends State<MoviePage> {
         print('Error fetching credits: $e');
       }
 
+      List<dynamic>? collectionMovies;
+      if (details['belongs_to_collection'] != null) {
+        try {
+          final collectionId = details['belongs_to_collection']['id'];
+          final collection = await _tmdbService.getCollectionDetails(
+            collectionId,
+          );
+          collectionMovies = collection['parts'];
+          // Sort by release date
+          collectionMovies?.sort((a, b) {
+            final dateA = a['release_date'] ?? '';
+            final dateB = b['release_date'] ?? '';
+            return dateA.compareTo(dateB);
+          });
+        } catch (e) {
+          print('Error fetching collection: $e');
+        }
+      }
+
       final inWatchlist = await SupabaseService.isInWatchlist(widget.movieId);
-      final isWatched = await SupabaseService.isWatched(widget.movieId);
+      final watchedItem = await SupabaseService.getWatchedItem(widget.movieId);
+      final isWatched = watchedItem != null;
+      final isLiked = watchedItem != null && watchedItem['rating'] == 1;
 
       String? trailerId;
       final trailer = videos.firstWhere(
@@ -94,8 +116,10 @@ class _MoviePageState extends State<MoviePage> {
           _providers = providers;
           _cast = credits?['cast'];
           _crew = credits?['crew'];
+          _collectionMovies = collectionMovies;
           _isInWatchlist = inWatchlist;
           _isWatched = isWatched;
+          _isLiked = isLiked;
           _isLoading = false;
         });
       }
@@ -118,7 +142,10 @@ class _MoviePageState extends State<MoviePage> {
           isMovie: true,
           runtime: runtime,
         );
-        setState(() => _isWatched = false);
+        setState(() {
+          _isWatched = false;
+          _isLiked = false; // Also reset like status
+        });
         Toast.show(context, 'Removed from watched');
       } else if (_isInWatchlist) {
         // Mark as watched
@@ -135,6 +162,7 @@ class _MoviePageState extends State<MoviePage> {
         });
 
         Toast.show(context, 'Marked as watched');
+        _promptLike();
       } else {
         // Add to watchlist
         await SupabaseService.addToWatchlist(_movieDetails!, true);
@@ -147,18 +175,81 @@ class _MoviePageState extends State<MoviePage> {
     }
   }
 
+  Future<void> _promptLike() async {
+    if (!mounted) return;
+
+    final liked = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text(
+          'Did you like this movie?',
+          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (liked == true) {
+      if (!_isLiked) {
+        _toggleLike();
+      }
+    }
+  }
+
   Future<void> _toggleLike() async {
     if (_movieDetails == null) return;
 
-    setState(() => _isLiked = true);
+    final newLikeState = !_isLiked;
+    setState(() => _isLiked = newLikeState);
 
-    final genres = (_movieDetails!['genres'] as List)
-        .map((g) => g['name'])
-        .join(',');
+    try {
+      if (newLikeState) {
+        // Like logic
+        if (!_isWatched) {
+          // If liking, it implies watched
+          final runtime = _movieDetails!['runtime'] as int?;
+          await SupabaseService.addToWatched(
+            _movieDetails!,
+            true,
+            rating: 1,
+            runtime: runtime,
+          );
+          if (_isInWatchlist) {
+            await SupabaseService.removeFromWatchlist(widget.movieId);
+            setState(() => _isInWatchlist = false);
+          }
+          setState(() => _isWatched = true);
+        } else {
+          await SupabaseService.updateRating(widget.movieId, 1);
+        }
 
-    await SupabaseService.addLikedMovieGenres(genres);
+        final genres = (_movieDetails!['genres'] as List)
+            .map((g) => g['name'])
+            .join(',');
 
-    Toast.show(context, 'Added to your interests');
+        await SupabaseService.addLikedMovieGenres(genres);
+
+        Toast.show(context, 'Added to your interests');
+      } else {
+        // Unlike logic
+        await SupabaseService.updateRating(widget.movieId, 0);
+        Toast.show(context, 'Removed from interests');
+      }
+    } catch (e) {
+      // Revert on error
+      setState(() => _isLiked = !newLikeState);
+      Toast.show(context, 'Error updating like: $e', isError: true);
+    }
   }
 
   @override
@@ -455,6 +546,127 @@ class _MoviePageState extends State<MoviePage> {
                           ),
                         );
                       }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (_collectionMovies != null &&
+                      _collectionMovies!.isNotEmpty) ...[
+                    Text(
+                      'Collection',
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 200, // Adjusted height for posters
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _collectionMovies!.length,
+                        itemBuilder: (context, index) {
+                          final movie = _collectionMovies![index];
+                          // Skip current movie if desired, or keep to show position in collection
+                          // if (movie['id'] == widget.movieId) return SizedBox.shrink();
+
+                          final posterPath = movie['poster_path'];
+                          final releaseDate = movie['release_date'] ?? '';
+                          final year = releaseDate.length >= 4
+                              ? releaseDate.substring(0, 4)
+                              : '';
+
+                          return GestureDetector(
+                            onTap: () {
+                              // Prevent navigating to current page again if clicking same movie
+                              if (movie['id'] == widget.movieId) return;
+
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      MoviePage(movieId: movie['id']),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 120,
+                              margin: const EdgeInsets.only(right: 12),
+                              decoration: BoxDecoration(
+                                border: movie['id'] == widget.movieId
+                                    ? Border.all(
+                                        color: theme.colorScheme.primary,
+                                        width: 2,
+                                      )
+                                    : null,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: posterPath != null
+                                          ? Image.network(
+                                              'https://image.tmdb.org/t/p/w200$posterPath',
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Container(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .surfaceContainerHighest,
+                                                    child: Center(
+                                                      child: Icon(
+                                                        Icons.movie,
+                                                        color: theme
+                                                            .colorScheme
+                                                            .onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                  ),
+                                            )
+                                          : Container(
+                                              color: theme
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                              child: Center(
+                                                child: Icon(
+                                                  Icons.movie,
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    movie['title'] ?? 'No Title',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    year,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 24),
                   ],

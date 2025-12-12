@@ -74,10 +74,12 @@ class _SeriesPageState extends State<SeriesPage> {
       }
 
       final inWatchlist = await SupabaseService.isInWatchlist(widget.tvId);
-      final isWatched = await SupabaseService.isWatched(widget.tvId);
 
       // Fetch watched status
       final watchedItem = await SupabaseService.getWatchedItem(widget.tvId);
+      final isWatched = watchedItem != null;
+      final isLiked = watchedItem != null && watchedItem['rating'] == 1;
+
       int? wSeason;
       int? wEpisode;
 
@@ -113,6 +115,7 @@ class _SeriesPageState extends State<SeriesPage> {
           _crew = credits?['crew'];
           _isInWatchlist = inWatchlist;
           _isWatched = isWatched;
+          _isLiked = isLiked;
           _watchedSeason = wSeason;
           _watchedEpisode = wEpisode;
           _isLoading = false;
@@ -154,7 +157,10 @@ class _SeriesPageState extends State<SeriesPage> {
           isMovie: false,
           runtime: runtime,
         );
-        setState(() => _isWatched = false);
+        setState(() {
+          _isWatched = false;
+          _isLiked = false;
+        });
         Toast.show(context, 'Removed from watched');
       } else if (_isInWatchlist) {
         // If in watchlist, "Mark Watched" logic (Mark entire series)
@@ -168,6 +174,7 @@ class _SeriesPageState extends State<SeriesPage> {
         });
 
         Toast.show(context, 'Marked series as watched');
+        _promptLike();
       } else {
         // If not in watchlist, "Add to Watchlist" logic
         await SupabaseService.addToWatchlist(_tvDetails!, false);
@@ -177,6 +184,37 @@ class _SeriesPageState extends State<SeriesPage> {
       }
     } catch (e) {
       Toast.show(context, 'Error: $e', isError: true);
+    }
+  }
+
+  Future<void> _promptLike() async {
+    if (!mounted) return;
+
+    final liked = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text(
+          'Did you like this series?',
+          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (liked == true) {
+      if (!_isLiked) {
+        _toggleLike();
+      }
     }
   }
 
@@ -210,15 +248,37 @@ class _SeriesPageState extends State<SeriesPage> {
   Future<void> _toggleLike() async {
     if (_tvDetails == null) return;
 
-    setState(() => _isLiked = true);
+    final newLikeState = !_isLiked;
+    setState(() => _isLiked = newLikeState);
 
-    final genres = (_tvDetails!['genres'] as List)
-        .map((g) => g['name'])
-        .join(',');
+    try {
+      if (newLikeState) {
+        if (!_isWatched) {
+          await SupabaseService.markSeriesAsWatched(_tvDetails!, _tvDetails!);
+          setState(() => _isWatched = true);
+          if (_isInWatchlist) {
+            await SupabaseService.removeFromWatchlist(widget.tvId);
+            setState(() => _isInWatchlist = false);
+          }
+        }
 
-    await SupabaseService.addLikedTVGenres(genres);
+        await SupabaseService.updateRating(widget.tvId, 1);
 
-    Toast.show(context, 'Added to your interests');
+        final genres = (_tvDetails!['genres'] as List)
+            .map((g) => g['name'])
+            .join(',');
+
+        await SupabaseService.addLikedTVGenres(genres);
+
+        Toast.show(context, 'Added to your interests');
+      } else {
+        await SupabaseService.updateRating(widget.tvId, 0);
+        Toast.show(context, 'Removed from interests');
+      }
+    } catch (e) {
+      setState(() => _isLiked = !newLikeState);
+      Toast.show(context, 'Error updating like: $e', isError: true);
+    }
   }
 
   Future<void> _updateProgress(int seasonNumber, int episodeNumber) async {

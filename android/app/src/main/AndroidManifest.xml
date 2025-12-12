@@ -31,7 +31,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="viewpick" android:host="auth" />
+                <!-- Specific host -->
+                <data android:scheme="viewpick" android:host="reset-password" />
+                <!-- Catch-all for debugging -->
+                <data android:scheme="viewpick" android:host="*" />
             </intent-filter>
 
             <!-- Also handle HTTPS URLs for email confirmation -->

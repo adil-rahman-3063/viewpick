@@ -43,6 +43,14 @@ class SupabaseService {
     await supabase.auth.signOut();
   }
 
+  // Reset password
+  static Future<void> resetPassword(String email) async {
+    await supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo: 'viewpick://reset-password',
+    );
+  }
+
   // Get current user
   static User? currentUser() => supabase.auth.currentUser;
 
@@ -454,6 +462,7 @@ class SupabaseService {
     Map<String, dynamic> show,
     Map<String, dynamic> details, {
     int? totalRuntime,
+    int? rating,
   }) async {
     try {
       final seasons = details['seasons'] as List<dynamic>;
@@ -500,6 +509,7 @@ class SupabaseService {
           watchedSeason: maxSeason,
           watchedEpisode: maxEpisode,
           runtime: totalRuntime,
+          rating: rating,
         );
       }
     } catch (e) {

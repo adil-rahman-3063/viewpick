@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,84 +7,54 @@ import 'login.dart';
 import 'register.dart';
 import 'pages/home_page.dart';
 import 'pages/settings.dart';
+import 'pages/forgot_password.dart';
+import 'pages/password_change.dart';
 
-void handleAuthCallback(Uri uri) async {
-  // Get the session from the URL
-  if (uri.queryParameters['access_token'] != null) {
-    // Set the session in Supabase
-    final client = Supabase.instance.client;
-    await client.auth.setSession(uri.queryParameters['access_token']!);
-    // Navigate to home page
-    // Note: You'll need to implement a way to access navigation from here
-    // One way is to use a GlobalKey<NavigatorState>
-  }
-}
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // ... imports
 
-  // Initialize deep link handling
-  final appLinks = AppLinks();
-
-  // Handle incoming links - both cold and warm starts
-  appLinks.allUriLinkStream.listen((uri) {
-    print('Got link: $uri');
-    if (uri.path == '/auth') {
-      handleAuthCallback(uri);
-    }
-  });
-
-  // Handle Windows protocol activation: args may contain the deep link URI
-  String? initialLinkFromArgs;
-  if (Platform.isWindows && args.isNotEmpty) {
-    for (final a in args) {
-      if (a.startsWith('viewpick://')) {
-        initialLinkFromArgs = a;
-        break;
-      }
-    }
-  }
-
-  // Load local .env file (copy from .env.example and set your keys)
+  // Load environment
   await dotenv.load(fileName: 'assets/credentials.env').catchError((err) {
-    // If loading fails, we'll continue but warn in console.
-    // You can still run the app and fill in env vars later.
-    // ignore: avoid_print
     print('Could not load .env file: $err');
   });
 
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
-  String initialRoute = '/';
-
   if (supabaseUrl != null && supabaseAnonKey != null) {
-    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-    // ignore: avoid_print
-    print('Supabase initialized');
-
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      initialRoute = '/home';
-    }
-  } else {
-    // ignore: avoid_print
-    print(
-      'Supabase not initialized: missing SUPABASE_URL or SUPABASE_ANON_KEY in .env',
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      debug: true,
     );
+    print('Supabase initialized (Debug Mode)');
+  } else {
+    print('Supabase not initialized: missing keys');
   }
 
-  runApp(MyApp(initialLink: initialLinkFromArgs, initialRoute: initialRoute));
+  // Listen for password recovery event (Standard Supabase)
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final event = data.event;
+    print('MAIN: AuthEvent: $event');
+    if (event == AuthChangeEvent.passwordRecovery) {
+      print('MAIN: Password Recovery Event Detected! Navigating...');
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/password_change',
+        (route) => false,
+      );
+    }
+  });
+
+  runApp(const MyApp());
 }
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
 class MyApp extends StatelessWidget {
-  final String? initialLink;
-  final String initialRoute;
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-  MyApp({super.key, this.initialLink, required this.initialRoute});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -95,22 +64,102 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'ViewPick',
           navigatorKey: navigatorKey,
-          // Use Material 3 with brown seed color
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          // Dynamic theme mode
           themeMode: currentMode,
-
-          // Start at the login page and provide a named route for home.
-          initialRoute: initialRoute,
+          initialRoute: '/',
           routes: {
-            '/': (context) => LoginPage(initialLink: initialLink),
-            '/login': (context) => LoginPage(initialLink: initialLink),
+            '/': (context) => const AuthHandler(),
+            '/login': (context) => const LoginPage(),
             '/home': (context) => HomePage(),
             '/register': (context) => const RegisterPage(),
+            '/forgot_password': (context) => const ForgotPasswordPage(),
+            '/password_change': (context) => const PasswordChangePage(),
             '/settings': (context) => const SettingsPage(),
           },
         );
+      },
+    );
+  }
+}
+
+class AuthHandler extends StatefulWidget {
+  const AuthHandler({super.key});
+
+  @override
+  State<AuthHandler> createState() => _AuthHandlerState();
+}
+
+class _AuthHandlerState extends State<AuthHandler> {
+  late AppLinks _appLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    _appLinks = AppLinks();
+
+    // Listen to all links
+    _appLinks.allUriLinkStream.listen((uri) {
+      _processDeepLink(uri);
+    });
+  }
+
+  Future<void> _processDeepLink(Uri uri) async {
+    print('AuthHandler: Deep link received: $uri');
+
+    if (uri.fragment.contains('type=recovery') ||
+        uri.queryParameters['type'] == 'recovery' ||
+        uri.host == 'reset-password') {
+      print('AuthHandler: Recovery link detected!');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reset Link Detected! Processing...')),
+      );
+
+      final fragment = uri.fragment;
+      final params = Uri.splitQueryString(fragment);
+      final accessToken = params['access_token'];
+      final refreshToken = params['refresh_token'];
+
+      if (accessToken != null && refreshToken != null) {
+        print('AuthHandler: Setting session...');
+        try {
+          await Supabase.instance.client.auth.setSession(refreshToken);
+          print('AuthHandler: Session set. Navigating...');
+          if (mounted) {
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/password_change', (route) => false);
+          }
+        } catch (e) {
+          print('AuthHandler: Error: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Session Error: $e')));
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final session = snapshot.data?.session;
+          if (session != null) {
+            return HomePage();
+          }
+        }
+        return const LoginPage();
       },
     );
   }

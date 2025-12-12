@@ -57,6 +57,7 @@ class _HomePageState extends State<HomePage> {
               child: MovieSeriesToggle(
                 isMovieMode: _isMovieMode,
                 onToggle: (isMovie) {
+                  if (!mounted) return;
                   setState(() {
                     _isMovieMode = isMovie;
                   });
@@ -337,9 +338,9 @@ class _HomeTabState extends State<HomeTab> {
                 : overview,
           };
         } catch (e) {
-          print(
-            'Error fetching details for watchlist item ${item['item_id']}: $e',
-          );
+          // print(
+          //   'Error fetching details for watchlist item ${item['item_id']}: $e',
+          // );
           // Fallback to Supabase data
           return {
             'id': item['item_id'],

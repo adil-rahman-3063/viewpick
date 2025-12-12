@@ -742,8 +742,8 @@ class _ExplorePageState extends State<ExplorePage> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             height: _isFilterExpanded
-                ? 320
-                : 0, // Increased height for providers
+                ? 350 // Adjusted height
+                : 0,
             curve: Curves.easeInOutCubic,
             child: ClipRect(
               child: SingleChildScrollView(
@@ -760,6 +760,46 @@ class _ExplorePageState extends State<ExplorePage> {
                           _buildFilterChip('Movie'),
                           const SizedBox(width: 8),
                           _buildFilterChip('TV Series'),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _selectedType = 'All';
+                                _selectedYearRange = const RangeValues(
+                                  1950,
+                                  2025,
+                                );
+                                _selectedGenreIds.clear();
+                                _selectedProviderIds.clear();
+                              });
+                              _fetchMixedContent();
+                            },
+                            icon: Icon(
+                              Icons.clear_all_rounded,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            label: Text(
+                              'Clear',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.error,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.errorContainer.withOpacity(0.2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -836,6 +876,7 @@ class _ExplorePageState extends State<ExplorePage> {
                           ],
                         ),
                       ],
+                      const SizedBox(height: 16),
                       const SizedBox(height: 16),
                     ],
                   ),
