@@ -157,9 +157,6 @@ class _SwipePageState extends State<SwipePage> {
 
       // Initial fetch (small batch for speed)
       await _fetchMovies(count: 6);
-
-      // Pre-fetch more content in background
-      _loadMoreContent(count: 15);
     } catch (e) {
       print('Error initializing page: $e');
       if (mounted) {
@@ -221,13 +218,11 @@ class _SwipePageState extends State<SwipePage> {
       bool isDisliked(Map<String, dynamic> item) {
         if (excludedIds.contains(item['id'])) return true;
 
-        final itemYear =
-            int.tryParse(
-              (item['release_date'] ?? item['first_air_date'] ?? '')
-                  .toString()
-                  .substring(0, 4),
-            ) ??
-            0;
+        final dateStr = (item['release_date'] ?? item['first_air_date'] ?? '')
+            .toString();
+        final itemYear = dateStr.length >= 4
+            ? int.tryParse(dateStr.substring(0, 4)) ?? 0
+            : 0;
         final itemGenres = (item['genre_ids'] as List<dynamic>? ?? [])
             .map((id) => activeGenreMap[id])
             .where((name) => name != null)
@@ -271,17 +266,8 @@ class _SwipePageState extends State<SwipePage> {
             return !dislikedLanguages.any((dl) => lang.contains(dl));
           }).toList();
         } else {
-          // Series mode: Use all supported languages + extra English weight
-          availableLanguages = List.from(
-            SupabaseService.supportedLanguageCodes,
-          );
-          // Add English 3 more times to give it a "slight upper hand"
-          availableLanguages.addAll(['en-US', 'en-US', 'en-US']);
-
-          // Filter out explicitly disliked languages
-          availableLanguages = availableLanguages.where((lang) {
-            return !dislikedLanguages.any((dl) => lang.contains(dl));
-          }).toList();
+          // Series mode: Only English
+          availableLanguages = ['en-US'];
         }
 
         if (availableLanguages.isEmpty) return;
@@ -383,9 +369,12 @@ class _SwipePageState extends State<SwipePage> {
       }
 
       // 3. Prepare Random Content Fetch
+
       Future<void> fetchRandom() async {
         int attempts = 0;
-        final supportedLanguages = SupabaseService.supportedLanguageCodes;
+        final supportedLanguages = _isMovieMode
+            ? SupabaseService.supportedLanguageCodes
+            : ['en-US'];
 
         while (randomContent.length < 3 && attempts < 5) {
           attempts++;
@@ -439,10 +428,11 @@ class _SwipePageState extends State<SwipePage> {
         // Recursive call or loop could be used, but let's just do a simple fallback fill
         // to avoid infinite recursion complexity.
         int attempts = 0;
-        while (allContent.length < targetCount && attempts < 3) {
+        // Increase attempts to ensure we fill the batch
+        while (allContent.length < targetCount && attempts < 10) {
           attempts++;
           try {
-            final randomPage = Random().nextInt(20) + 1;
+            final randomPage = Random().nextInt(50) + 1; // Wider Page Range
             final fallback = _isMovieMode
                 ? await _tmdbService.getPopularMovies(page: randomPage)
                 : await _tmdbService.getPopularTV(page: randomPage);
@@ -1014,9 +1004,8 @@ class _SwipePageState extends State<SwipePage> {
       });
     }
 
-    // Infinite scroll trigger: Load more when we have fewer than 10 cards remaining
-    // This ensures we have a buffer.
-    if (_movies.length - previousIndex <= 10) {
+    // Infinite scroll trigger: Fetch 15 more items every 4 swipes
+    if ((previousIndex + 1) % 4 == 0) {
       _loadMoreContent(count: 15);
     }
 

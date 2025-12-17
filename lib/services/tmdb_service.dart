@@ -7,8 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class TMDBService {
   final String _baseUrl = 'https://api.themoviedb.org/3';
-  final String _apiKey =
-      dotenv.env['TMDB_API_KEY'] ?? 'a92961c9d1ffb10b5688204638171d0d';
+  final String _apiKey = dotenv.env['TMDB_API_KEY'] ?? '';
 
   String? _resolvedIp;
 
